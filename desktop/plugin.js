@@ -24,6 +24,26 @@ export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
 export const MONO_STYLE = { fontFamily: '\u0027JetBrainsMono Nerd Font\u0027, ui-monospace, SFMono-Regular, Menlo, monospace' }
 
+export const CC = {
+  accent: '#89b4fa',
+  accentHover: '#a1c0f8',
+  accentText: '#1e1e2e',
+  surface: '#29293a',
+  surfaceHover: '#313244',
+  surfaceActive: '#45475a',
+  border: '#45475a',
+  text: '#cdd6f4',
+  muted: '#585b70',
+  success: '#a6e3a1',
+  error: '#f38ba8',
+}
+
+export const BTN_PRIMARY = 'rounded-md bg-[#89b4fa] px-3 py-1.5 text-[11px] font-semibold text-[#1e1e2e] shadow-sm transition-colors duration-150 hover:bg-[#a1c0f8] active:scale-[0.98]'
+export const BTN_SECONDARY = 'rounded-md border border-[#45475a] bg-[#313244] px-3 py-1.5 text-[11px] font-semibold text-[#cdd6f4] transition-colors duration-150 hover:border-[#89b4fa] hover:bg-[#45475a] hover:text-[#cdd6f4]'
+export const BTN_ICON = 'h-8 w-8 rounded-md p-0 text-[#585b70] transition-colors duration-150 hover:bg-[#313244] hover:text-[#89b4fa]'
+export const BTN_SMALL = 'h-7 rounded-md px-2 text-[10px] font-semibold transition-colors duration-150'
+
+
 // Registry areas as string literals: works even if a host build omits named exports.
 export const ROUTES_AREA_LIT = 'routes'
 export const SIDEBAR_NAV_LIT = 'sidebar.nav'
@@ -540,7 +560,7 @@ function StartWorktreeButton({ item }) {
   }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(Button, {
-      size: 'sm', variant: 'ghost', className: 'rounded-md bg-[#89b4fa] px-3 py-1.5 text-[11px] font-semibold text-[#1e1e2e] shadow-sm transition-all duration-150 hover:bg-[#a1c0f8] hover:shadow-md active:scale-[0.98]', disabled: busy,
+      size: 'sm', variant: 'ghost', className: BTN_PRIMARY, disabled: busy,
       onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
       children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
     }),
@@ -614,7 +634,7 @@ function TasksToolbar() {
         ] }),
       ] }),
       jsx(Tip, { label: 'Group by repository', children: jsx(Button, {
-        variant: filter.group ? 'secondary' : 'ghost', size: 'sm', className: 'h-7 px-2 text-[11px]',
+        variant: 'ghost', size: 'sm', className: filter.group ? BTN_PRIMARY : BTN_SECONDARY,
         onClick: () => set({ group: !filter.group }), children: 'Group' }) }),
     ] }),
     repos.length > 1 ? jsx(RepoFilterRow, { repos, selected: filter.repos, onChange: v => set({ repos: v }) }) : null,
@@ -654,8 +674,8 @@ function TasksList() {
       jsx('div', { className: 'font-semibold', children: 'Failed to load tasks' }),
       jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-xs', children: msg }),
       jsxs('div', { className: 'mt-2 flex gap-2', children: [
-        jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => { try { navigator.clipboard?.writeText(msg) } catch {} }, children: 'Copy error' }),
-        jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', onClick: () => q.refetch(), children: 'Retry' }),
+        jsx(Button, { size: 'sm', variant: 'ghost', className: BTN_SECONDARY, onClick: () => { try { navigator.clipboard?.writeText(msg) } catch {} }, children: 'Copy error' }),
+        jsx(Button, { size: 'sm', variant: 'ghost', className: BTN_PRIMARY, onClick: () => q.refetch(), children: 'Retry' }),
       ] }),
     ] })
   }
@@ -697,7 +717,7 @@ function TaskDetail({ item, onClose }) {
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
     jsxs('div', { className: 'shrink-0 border-b border-[#45475a] bg-[#29293a] px-3 py-2.5', children: [
       jsxs('div', { className: 'flex flex-wrap items-start gap-3', children: [
-        jsx(Button, { variant: 'ghost', size: 'sm', className: 'mt-0.5 h-7 w-7 shrink-0 rounded-md p-0 text-[#585b70] transition-colors duration-150 hover:bg-[#313244] hover:text-[#cdd6f4]', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
+        jsx(Button, { variant: 'ghost', size: 'sm', className: 'mt-0.5 shrink-0 ' + BTN_ICON, onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
         jsxs('div', { className: 'min-w-0 flex-1', children: [
           jsxs('div', { className: 'flex flex-wrap items-center gap-2', children: [
             jsxs('span', { className: 'inline-flex items-center gap-1.5 rounded-full bg-[#1e1e2e] px-2.5 py-0.5 text-[10px] font-semibold text-[#cdd6f4]', children: [
@@ -710,11 +730,11 @@ function TaskDetail({ item, onClose }) {
         ] }),
         jsxs('div', { className: 'ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2', children: [
           jsx(StartWorktreeButton, { item }),
-          jsx(Button, { size: 'sm', variant: 'outline', className: 'rounded-md border border-[#45475a] bg-[#313244] px-3 py-1.5 text-[11px] font-semibold text-[#cdd6f4] transition-colors duration-150 hover:border-[#89b4fa] hover:bg-[#45475a] hover:text-white', disabled: busy,
+          jsx(Button, { size: 'sm', variant: 'ghost', className: BTN_SECONDARY, disabled: busy,
             onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
           jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
-          jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-8 w-8 rounded-md p-0 text-[#585b70] transition-colors duration-150 hover:bg-[#313244] hover:text-[#cdd6f4]', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
+          jsx(Button, { variant: 'ghost', size: 'sm', className: BTN_ICON, onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
         ] }),
       ] }),
       err ? jsx('div', { className: 'mt-2 text-[10px] text-red-400', children: err }) : null,
@@ -748,7 +768,7 @@ function TaskDetail({ item, onClose }) {
       item.kind === 'pr' && item.state === 'OPEN' ? jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
         jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Merge' }),
         jsx('div', { className: 'mt-2', children: jsx(Select, { value: mergeChoice, onValueChange: v => { setMergeChoice(v); void act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --${v}`); setMergeChoice('') })() }, children: [
-          jsx(SelectTrigger, { className: 'h-8 rounded-xl text-[11px] transition-colors hover:border-[#89b4fa]', children: jsx(SelectValue, { placeholder: 'Choose merge method...' }) }),
+          jsx(SelectTrigger, { className: 'h-8 rounded-md border border-[#45475a] bg-[#313244] px-3 text-[11px] text-[#cdd6f4] transition-colors duration-150 hover:border-[#89b4fa] hover:bg-[#45475a]', children: jsx(SelectValue, { placeholder: 'Choose merge method...' }) }),
           jsxs(SelectContent, { children: [
             jsx(SelectItem, { value: 'merge', children: 'Create merge commit' }),
             jsx(SelectItem, { value: 'squash', children: 'Squash and merge' }),
@@ -771,7 +791,7 @@ function TaskDetail({ item, onClose }) {
     jsxs('div', { className: 'shrink-0 border-t border-[#45475a] bg-[#29293a] p-2', children: [
       jsx(Textarea, { value: body, onChange: e => setBody(e.target.value), placeholder: 'Write a comment...', className: 'min-h-[64px] rounded-xl text-xs' }),
       jsxs('div', { className: 'mt-2 flex items-center gap-2', children: [
-        jsx(Button, { size: 'sm', variant: 'ghost', className: 'rounded-md bg-[#89b4fa] px-3 py-1.5 text-[11px] font-semibold text-[#1e1e2e] transition-colors duration-150 hover:bg-[#a1c0f8] disabled:opacity-50', disabled: busy || !body.trim(),
+        jsx(Button, { size: 'sm', variant: 'ghost', className: BTN_PRIMARY, disabled: busy || !body.trim(),
           onClick: act(async () => { await postComment(item, body); setBody('') }), children: 'Comment' }),
         err ? jsx('span', { className: 'text-[10px] text-red-400', children: err }) : null,
       ] }),
@@ -814,8 +834,8 @@ function CloneRootsSettings() {
     jsx('div', { className: 'text-xs text-(--ui-text-tertiary)', children: 'Folders scanned for local git checkouts (one per line, ~ allowed)' }),
     jsx(Textarea, { value: text, onChange: e => { setText(e.target.value); setSaved(false) }, className: 'min-h-[120px] font-mono text-xs' }),
     jsxs('div', { className: 'flex items-center gap-2', children: [
-      jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', onClick: () => { persistCloneRoots(pluginCtx, text); setText($cloneRoots.get().join('\n')); setSaved(true) }, children: 'Save' }),
-      jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 px-2 text-[11px]', onClick: () => { setText(DEFAULT_CLONE_ROOTS.join('\n')); setSaved(false) }, children: 'Reset to defaults' }),
+      jsx(Button, { size: 'sm', variant: 'ghost', className: BTN_PRIMARY, onClick: () => { persistCloneRoots(pluginCtx, text); setText($cloneRoots.get().join('\n')); setSaved(true) }, children: 'Save' }),
+      jsx(Button, { variant: 'ghost', size: 'sm', className: BTN_SECONDARY, onClick: () => { setText(DEFAULT_CLONE_ROOTS.join('\n')); setSaved(false) }, children: 'Reset to defaults' }),
       saved ? jsx('span', { className: 'text-[10px] text-(--ui-text-quaternary)', children: 'Saved.' }) : null,
     ] }),
   ] })
@@ -869,7 +889,7 @@ function RepoPicker() {
   return jsxs('div', { className: 'relative z-10 shrink-0 border-b border-(--ui-stroke-secondary) px-2 py-1.5', style: MONO_STYLE, children: [
     jsxs('div', { className: 'flex items-center gap-2', children: [
       jsx('span', { className: 'text-[11px] font-medium text-(--ui-text-tertiary)', children: 'Repositories' }),
-      jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
+      jsx(Button, { size: 'sm', variant: 'ghost', className: BTN_SECONDARY, onClick: () => setOpen(!open), children: `${selected.length} selected` }),
       selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
     ] }),
     open ? jsxs('div', { className: 'mt-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-2 text-(--ui-text-primary) shadow-lg', children: [
