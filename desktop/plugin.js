@@ -490,7 +490,7 @@ function TaskCard({ item }) {
       jsxs('div', { className: 'mt-1 flex items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
         jsx('span', { children: item.author || '—' }),
         jsx('span', { children: '·' }),
-        jsx('span', { children: relativeTime(Number.isFinite(Date.parse(item.updatedAt || '')) ? Date.parse(item.updatedAt) : Date.now()) }),
+        jsx('span', { children: formatTaskAge(item.updatedAt) }),
         ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: typeof l === 'string' ? l : l?.name }, typeof l === 'string' ? l : l?.name)),
       ] }),
     ],
@@ -723,6 +723,17 @@ function RepoPicker() {
         }),
       ] }) : null,
   ] })
+}
+
+
+function formatTaskAge(value) {
+  const ms = Date.parse(value || '')
+  if (!Number.isFinite(ms)) return ''
+  const diff = Date.now() - ms
+  if (diff < 60000) return 'just now'
+  if (diff < 3600000) return `${Math.round(diff / 60000)}m`
+  if (diff < 86400000) return `${Math.round(diff / 3600000)}h`
+  return `${Math.round(diff / 86400000)}d`
 }
 
 export default {
