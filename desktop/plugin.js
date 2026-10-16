@@ -626,6 +626,9 @@ function TaskDetail({ item, onClose }) {
     try { await fn() } catch (e) { setErr(String(e?.message || e)); host.notify?.({ kind: 'error', message: String(e?.message || e) }) }
     finally { setBusy(false) }
   }
+  const detail = (view.data && typeof view.data === 'object') ? view.data : {}
+  const labels = Array.isArray(detail.labels) ? detail.labels : (Array.isArray(item.labels) ? item.labels : [])
+  const comments = Array.isArray(detail.comments) ? detail.comments : []
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
     jsxs('div', { className: 'flex shrink-0 items-center gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
       jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
@@ -637,9 +640,30 @@ function TaskDetail({ item, onClose }) {
       jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
       jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
     ] }),
-    jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsx('div', { className: 'space-y-3 p-3 text-xs', children: [
-      jsx('div', { className: 'font-medium', children: item.title }),
-      jsx('div', { className: 'whitespace-pre-wrap text-(--ui-text-secondary)', children: view.data?.body || (view.isLoading ? 'Loading...' : 'No description.') }),
+    jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3 text-xs', children: [
+      jsx('h2', { className: 'text-sm font-semibold text-(--ui-text-primary)', children: detail.title || item.title }),
+      jsxs('div', { className: 'grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', children: [
+        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Repository' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: item.repo }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Type' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'State' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.state || item.state }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Author' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.author || item.author }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Created' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.createdAt || item.createdAt }),
+        labels.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Labels' }) : null,
+        labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof l === 'string' ? l : l?.name })) : null,
+      ] }),
+      jsx('div', { className: 'whitespace-pre-wrap text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || item.title ? (detail.body || 'No description.') : 'No description.') }),
+      comments.length ? jsxs('div', { className: 'space-y-2', children: [
+        jsx('div', { className: 'text-[11px] font-semibold text-(--ui-text-tertiary)', children: `Comments (${comments.length})` }),
+        comments.map((c, i) => jsxs('div', { key: i, className: 'rounded border border-(--ui-stroke-secondary) p-2', children: [
+          jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: (c.author?.login || c.user?.login || 'unknown') + ' · ' + (c.createdAt || c.created_at || '') }),
+          jsx('div', { className: 'mt-1 whitespace-pre-wrap text-(--ui-text-secondary)', children: c.body || '' }),
+        ] })),
+      ] }) : null,
     ] }) }),
     jsxs('div', { className: 'shrink-0 border-t border-(--ui-stroke-secondary) p-2', children: [
       jsx(Textarea, { value: body, onChange: e => setBody(e.target.value), placeholder: 'Leave a comment...', className: 'min-h-[64px] text-xs' }),
@@ -651,7 +675,6 @@ function TaskDetail({ item, onClose }) {
     ] }),
   ] })
 }
-
 function TasksPage() {
   const selected = useValue($selectedTask)
   if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) })
