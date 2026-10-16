@@ -44,25 +44,30 @@ export const BTN_ICON = 'gt-btn gt-btn-icon'
 export const BTN_SMALL = 'gt-btn gt-btn-small'
 
 const GT_CSS = `
-.gt-btn { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 80ms ease, box-shadow 120ms ease; }
-.gt-btn:active { transform: scale(0.97); }
-.gt-btn-primary { background: #89b4fa !important; color: #1e1e2e !important; border: 1px solid transparent !important; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
-.gt-btn-primary:hover { background: #a1c0f8 !important; color: #1e1e2e !important; box-shadow: 0 2px 6px rgba(137,180,250,0.35); }
-.gt-btn-secondary { background: #313244 !important; color: #cdd6f4 !important; border: 1px solid #45475a !important; }
-.gt-btn-secondary:hover { background: #45475a !important; color: #ffffff !important; border-color: #89b4fa !important; }
-.gt-btn-icon { color: #585b70 !important; background: transparent !important; border: 1px solid transparent !important; }
-.gt-btn-icon:hover { background: #313244 !important; color: #89b4fa !important; }
-.gt-btn-small { background: #313244 !important; color: #cdd6f4 !important; border: 1px solid #45475a !important; }
-.gt-btn-small:hover { background: #45475a !important; border-color: #89b4fa !important; color: #ffffff !important; }
-.gt-card { transition: background-color 120ms ease, border-color 120ms ease; }
-.gt-card:hover { background: #313244 !important; border-color: #89b4fa !important; }
-.gt-surface { background: var(--ui-bg-quaternary) !important; border-color: var(--ui-stroke-secondary) !important; }
-.gt-surface-deep { background: var(--ui-bg-tertiary) !important; }
-.gt-text { color: #cdd6f4 !important; }
-.gt-title { color: #cdd6f4 !important; font-weight: 600; }
-.gt-meta { color: #a6adc8 !important; }
-.gt-muted { color: #a6adc8 !important; }
-.gt-accent-text { color: #89b4fa !important; }
+.gt-root { background: #f5f4ed !important; color: #141413 !important; }
+.gt-btn { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 80ms ease, box-shadow 150ms ease; cursor: pointer; }
+.gt-btn:active { transform: translateY(1px) scale(0.98); }
+.gt-btn-primary { background: #c96442 !important; color: #faf9f5 !important; border: 1px solid #c96442 !important; box-shadow: 0 0 0 1px rgba(201,100,66,0.15); font-weight: 600; }
+.gt-btn-primary:hover { background: #a95236 !important; border-color: #a95236 !important; color: #faf9f5 !important; box-shadow: 0 2px 12px rgba(201,100,66,0.25); }
+.gt-btn-secondary { background: #faf9f5 !important; color: #141413 !important; border: 1.5px solid #5e5d59 !important; font-weight: 600; }
+.gt-btn-secondary:hover { background: #f0eee6 !important; border-color: #c96442 !important; color: #141413 !important; }
+.gt-btn-icon { color: #5e5d59 !important; background: transparent !important; border: 1px solid transparent !important; }
+.gt-btn-icon:hover { background: #f0eee6 !important; color: #c96442 !important; }
+.gt-btn-small { background: #faf9f5 !important; color: #141413 !important; border: 1.5px solid #5e5d59 !important; }
+.gt-btn-small:hover { background: #f0eee6 !important; border-color: #c96442 !important; color: #141413 !important; }
+.gt-card { transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; background: #faf9f5 !important; border-color: #e8e6dc !important; box-shadow: 0 2px 12px rgba(20,20,19,0.06); }
+.gt-card:hover { background: #faf9f5 !important; border-color: #c96442 !important; box-shadow: 0 0 0 1px #c96442, 0 4px 16px rgba(201,100,66,0.12); }
+.gt-surface { background: #faf9f5 !important; border-color: #e8e6dc !important; }
+.gt-surface-deep { background: #f0eee6 !important; }
+.gt-text { color: #141413 !important; }
+.gt-title { color: #141413 !important; font-weight: 600; }
+.gt-meta { color: #5e5d59 !important; }
+.gt-muted { color: #5e5d59 !important; }
+.gt-faint { color: #87867f !important; }
+.gt-accent-text { color: #c96442 !important; }
+.gt-state-open { color: #c96442 !important; }
+.gt-state-merged { color: #5e5d59 !important; }
+.gt-state-closed { color: #87867f !important; }
 `
 
 export function ensureGitTasksStyles() {
@@ -275,11 +280,11 @@ export function formatSeedMessage(item) {
 }
 
 export function stateColor(state, isDraft) {
-  if (isDraft) return 'var(--ui-text-tertiary)'
-  if (state === 'OPEN') return 'var(--ui-accent)'
-  if (state === 'MERGED') return 'var(--ui-text-secondary)'
-  if (state === 'CLOSED') return 'var(--ui-text-quaternary)'
-  return 'var(--ui-text-tertiary)'
+  if (isDraft) return '#87867f'
+  if (state === 'OPEN') return '#c96442'
+  if (state === 'MERGED') return '#5e5d59'
+  if (state === 'CLOSED') return '#87867f'
+  return '#87867f'
 }
 
 export function deriveChunkOffsets(byteLength, chunkSize = 3800) {
@@ -650,7 +655,7 @@ function TasksToolbar() {
     $filter.set(next)
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
-  return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) p-2', style: MONO_STYLE, children: [
+  return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b gt-surface p-2', style: MONO_STYLE, children: [
     jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'w-full' }),
     jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
       options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),

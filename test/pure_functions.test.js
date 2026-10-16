@@ -243,11 +243,11 @@ test('deriveChunkOffsets rejects invalid input', () => {
   assert.throws(() => deriveChunkOffsets(1.5))
 })
 
-test('stateColor maps states to theme variables, never hex', () => {
-  assert.equal(stateColor('OPEN', false), 'var(--ui-accent)')
-  assert.equal(stateColor('MERGED', false), 'var(--ui-text-secondary)')
-  assert.equal(stateColor('OPEN', true), 'var(--ui-text-tertiary)')
-  for (const s of ['OPEN', 'MERGED', 'CLOSED', '']) assert.match(stateColor(s, false), /^var\(--ui-/)
+test('stateColor maps states to the Warm Parchment palette', () => {
+  assert.equal(stateColor('OPEN', false), '#c96442')
+  assert.equal(stateColor('MERGED', false), '#5e5d59')
+  assert.equal(stateColor('OPEN', true), '#87867f')
+  for (const s of ['OPEN', 'MERGED', 'CLOSED', '']) assert.match(stateColor(s, false), /^#[0-9a-f]{6}$/i)
 })
 
 
