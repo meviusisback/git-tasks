@@ -540,7 +540,7 @@ function StartWorktreeButton({ item }) {
   }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(Button, {
-      size: 'sm', className: 'rounded-md px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-all hover:shadow-md', disabled: busy,
+      size: 'sm', variant: 'ghost', className: 'rounded-md bg-[#89b4fa] px-3 py-1.5 text-[11px] font-semibold text-[#1e1e2e] shadow-sm transition-all hover:bg-[#a1c0f8] hover:shadow-md', disabled: busy,
       onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
       children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
     }),
@@ -695,22 +695,22 @@ function TaskDetail({ item, onClose }) {
   const authorName = typeof detail.author === 'string' ? detail.author : (detail.author?.login || item.author || '—')
   const stateText = item.isDraft ? 'draft' : String(detail.state || item.state).toLowerCase()
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
-    jsxs('div', { className: 'shrink-0 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) px-3 py-2.5', children: [
+    jsxs('div', { className: 'shrink-0 border-b border-[#45475a] bg-[#29293a] px-3 py-2.5', children: [
       jsxs('div', { className: 'flex flex-wrap items-start gap-3', children: [
         jsx(Button, { variant: 'ghost', size: 'sm', className: 'mt-0.5 h-7 w-7 shrink-0 rounded-md p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
         jsxs('div', { className: 'min-w-0 flex-1', children: [
           jsxs('div', { className: 'flex flex-wrap items-center gap-2', children: [
-            jsxs('span', { className: 'inline-flex items-center gap-1.5 rounded-full bg-(--ui-bg-quinary) px-2.5 py-0.5 text-[10px] font-semibold text-(--ui-text-secondary)', children: [
+            jsxs('span', { className: 'inline-flex items-center gap-1.5 rounded-full bg-[#1e1e2e] px-2.5 py-0.5 text-[10px] font-semibold text-[#cdd6f4]', children: [
               jsx('span', { className: 'size-1.5 rounded-full', style: { background: stateColor(item.state, item.isDraft) } }),
               stateText,
             ] }),
-            jsx('span', { className: 'truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
+            jsx('span', { className: 'truncate text-[11px] text-[#585b70]', children: itemRef(item) }),
           ] }),
-          jsx('div', { className: 'mt-1 text-sm font-semibold leading-snug text-(--ui-text-primary)', children: detail.title || item.title }),
+          jsx('div', { className: 'mt-1 text-sm font-semibold leading-snug text-[#cdd6f4]', children: detail.title || item.title }),
         ] }),
         jsxs('div', { className: 'ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2', children: [
           jsx(StartWorktreeButton, { item }),
-          jsx(Button, { size: 'sm', variant: 'outline', className: 'rounded-md px-3 py-1.5 text-[11px] font-semibold', disabled: busy,
+          jsx(Button, { size: 'sm', variant: 'outline', className: 'rounded-md border border-[#45475a] bg-[#313244] px-3 py-1.5 text-[11px] font-semibold text-[#cdd6f4] hover:bg-[#45475a]', disabled: busy,
             onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
           jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
@@ -720,28 +720,28 @@ function TaskDetail({ item, onClose }) {
       err ? jsx('div', { className: 'mt-2 text-[10px] text-red-400', children: err }) : null,
     ] }),
     jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3', children: [
-      jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
-        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Details' }),
+      jsxs('section', { className: 'rounded-2xl border border-[#45475a] bg-[#29293a] p-3', children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#585b70]', children: 'Details' }),
         jsxs('dl', { className: 'mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]', children: [
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Repository' }),
-          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: item.repo }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Type' }),
-          jsx('dd', { className: 'text-(--ui-text-secondary)', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Author' }),
-          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: authorName }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Created' }),
-          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: detail.createdAt || item.createdAt || '—' }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Updated' }),
-          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: detail.updatedAt || item.updatedAt || '—' }),
-          (detail.baseRefName || detail.headRefName) ? jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Branch' }) : null,
-          (detail.baseRefName || detail.headRefName) ? jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Labels' }),
-          jsx('dd', { className: 'flex flex-wrap gap-1', children: labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] text-(--ui-text-tertiary)', children: typeof l === 'string' ? l : l?.name })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'None' }) }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Assignees' }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Repository' }),
+          jsx('dd', { className: 'break-words text-[#cdd6f4]', children: item.repo }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Type' }),
+          jsx('dd', { className: 'text-[#cdd6f4]', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Author' }),
+          jsx('dd', { className: 'break-words text-[#cdd6f4]', children: authorName }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Created' }),
+          jsx('dd', { className: 'break-words text-[#cdd6f4]', children: detail.createdAt || item.createdAt || '—' }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Updated' }),
+          jsx('dd', { className: 'break-words text-[#cdd6f4]', children: detail.updatedAt || item.updatedAt || '—' }),
+          (detail.baseRefName || detail.headRefName) ? jsx('dt', { className: 'text-[#585b70]', children: 'Branch' }) : null,
+          (detail.baseRefName || detail.headRefName) ? jsx('dd', { className: 'break-words text-[#cdd6f4]', children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
+          jsx('dt', { className: 'text-[#585b70]', children: 'Labels' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded-full bg-[#1e1e2e] px-2 py-0.5 text-[10px] text-[#cdd6f4]', children: typeof l === 'string' ? l : l?.name })) : jsx('span', { className: 'text-[#585b70]', children: 'None' }) }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Assignees' }),
           jsx('dd', { className: 'flex flex-wrap gap-1', children: assignees.length ? assignees.map((a, i) => jsx('span', { key: i, className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] text-(--ui-text-tertiary)', children: typeof a === 'string' ? a : (a?.login || a?.name || 'unknown') })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'No one assigned' }) }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Reviewers' }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Reviewers' }),
           jsx('dd', { className: 'flex flex-wrap gap-1', children: reviewers.length ? reviewers.map((r, i) => jsx('span', { key: i, className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] text-(--ui-text-tertiary)', children: typeof r === 'string' ? r : (r?.login || r?.name || 'unknown') })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'No reviewers' }) }),
-          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Checks' }),
+          jsx('dt', { className: 'text-[#585b70]', children: 'Checks' }),
           jsx('dd', { className: 'flex flex-wrap gap-1', children: checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-(--ui-text-quaternary)'), children: (c.conclusion || c.status || 'pending') + ' ' + (c.name || c.context || 'check') })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'No checks reported yet' }) }),
         ] }),
       ] }),
@@ -758,17 +758,17 @@ function TaskDetail({ item, onClose }) {
       ] }) : null,
       jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
         jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Description' }),
-        jsx('div', { className: 'mt-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
+        jsx('div', { className: 'mt-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#cdd6f4]', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
       ] }),
       comments.length ? jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
         jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Comments (' + comments.length + ')' }),
-        jsxs('div', { className: 'mt-2 space-y-2', children: comments.map((c, i) => jsxs('div', { key: i, className: 'rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) p-2', children: [
+        jsxs('div', { className: 'mt-2 space-y-2', children: comments.map((c, i) => jsxs('div', { key: i, className: 'rounded-xl border border-[#45475a] bg-[#1e1e2e] p-2', children: [
           jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: (typeof c.author === 'string' ? c.author : (c.author?.login || c.user?.login || 'unknown')) + ' · ' + (c.createdAt || c.created_at || '') }),
-          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-(--ui-text-secondary)', children: c.body || '' }),
+          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#cdd6f4]', children: c.body || '' }),
         ] })) }),
       ] }) : null,
     ] }) }),
-    jsxs('div', { className: 'shrink-0 border-t border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) p-2', children: [
+    jsxs('div', { className: 'shrink-0 border-t border-[#45475a] bg-[#29293a] p-2', children: [
       jsx(Textarea, { value: body, onChange: e => setBody(e.target.value), placeholder: 'Write a comment...', className: 'min-h-[64px] rounded-xl text-xs' }),
       jsxs('div', { className: 'mt-2 flex items-center gap-2', children: [
         jsx(Button, { size: 'sm', className: 'rounded-xl px-3 py-1.5 text-[11px] font-semibold', disabled: busy || !body.trim(),
