@@ -56,11 +56,11 @@ const GT_CSS = `
 .gt-btn-small:hover { background: #45475a !important; border-color: #89b4fa !important; color: #ffffff !important; }
 .gt-card { transition: background-color 120ms ease, border-color 120ms ease; }
 .gt-card:hover { background: #313244 !important; border-color: #89b4fa !important; }
-.gt-surface { background: #29293a !important; border-color: #45475a !important; }
-.gt-surface-deep { background: #1e1e2e !important; }
-.gt-text { color: #cdd6f4 !important; }
-.gt-muted { color: #585b70 !important; }
-.gt-accent-text { color: #89b4fa !important; }
+.gt-surface { background: var(--ui-bg-quaternary) !important; border-color: var(--ui-stroke-secondary) !important; }
+.gt-surface-deep { background: var(--ui-bg-tertiary) !important; }
+.gt-text { color: var(--ui-text-primary) !important; }
+.gt-muted { color: var(--ui-text-tertiary) !important; }
+.gt-accent-text { color: var(--ui-accent) !important; }
 `
 
 export function ensureGitTasksStyles() {
