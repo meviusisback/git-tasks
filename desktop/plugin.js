@@ -58,9 +58,11 @@ const GT_CSS = `
 .gt-card:hover { background: #313244 !important; border-color: #89b4fa !important; }
 .gt-surface { background: var(--ui-bg-quaternary) !important; border-color: var(--ui-stroke-secondary) !important; }
 .gt-surface-deep { background: var(--ui-bg-tertiary) !important; }
-.gt-text { color: var(--ui-text-primary) !important; }
-.gt-muted { color: var(--ui-text-tertiary) !important; }
-.gt-accent-text { color: var(--ui-accent) !important; }
+.gt-text { color: #cdd6f4 !important; }
+.gt-title { color: #cdd6f4 !important; font-weight: 600; }
+.gt-meta { color: #a6adc8 !important; }
+.gt-muted { color: #a6adc8 !important; }
+.gt-accent-text { color: #89b4fa !important; }
 `
 
 export function ensureGitTasksStyles() {
@@ -606,14 +608,14 @@ function TaskCard({ item }) {
   return jsxs('div', { className: 'gt-card group rounded-2xl border gt-surface p-3', style: MONO_STYLE, onClick: () => openTaskDetail(item), children: [
     jsxs('div', { className: 'flex items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-0 flex-1', children: [
-        jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-(--ui-text-tertiary)', children: [
+        jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] gt-muted', children: [
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
-          jsx('span', { className: 'truncate font-medium text-(--ui-text-secondary)', children: item.repo }),
+          jsx('span', { className: 'truncate font-medium gt-text', children: item.repo }),
           jsx('span', { children: `#${item.number}` }),
-          jsx('span', { className: 'ml-1 shrink-0', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
+          jsx('span', { className: 'ml-1 shrink-0 font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
         ] }),
-        jsx('div', { className: 'mt-1 line-clamp-2 text-sm font-medium text-(--ui-text-primary)', children: item.title }),
-        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
+        jsx('div', { className: 'mt-1 line-clamp-2 text-sm gt-title', children: item.title }),
+        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px] gt-meta', children: [
           jsx('span', { children: item.author || '—' }),
           jsx('span', { children: '·' }),
           jsx('span', { children: formatTaskAge(item.updatedAt) }),
