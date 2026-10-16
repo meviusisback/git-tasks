@@ -22,10 +22,17 @@ export const STORAGE_KEY_FILTER = 'filter'
 export const STORAGE_KEY_WORKTREE_SESSIONS = 'worktreeSessions'
 export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
-export const BUILD_TAG = 'parchment-20261017-v2'
+export const BUILD_TAG = 'parchment-20261017-v3'
 if (typeof console !== 'undefined') console.log('[git-tasks] build ' + BUILD_TAG)
 
 export const MONO_STYLE = { fontFamily: '\u0027JetBrainsMono Nerd Font\u0027, ui-monospace, SFMono-Regular, Menlo, monospace' }
+export const ST_PAGE = { backgroundColor: '#f5f4ed' }
+export const ST_CARD = { backgroundColor: '#faf9f5', borderColor: '#e8e6dc' }
+export const ST_DEEP = { backgroundColor: '#f0eee6', borderColor: '#e8e6dc' }
+export const ST_TEXT = { color: '#141413' }
+export const ST_MUTED = { color: '#5e5d59' }
+export const ST_FAINT = { color: '#87867f' }
+export const ST_ACCENT = { color: '#c96442' }
 
 export const CC = {
   accent: '#89b4fa',
@@ -507,9 +514,24 @@ function useRepoItems() {
   })
 }
 
-function PBtn({ kind = 'secondary', className = '', ...props }) {
-  const base = kind === 'primary' ? BTN_PRIMARY : kind === 'icon' ? BTN_ICON : BTN_SECONDARY
-  return jsx('button', { type: 'button', ...props, className: cn(base, className) })
+function PBtn({ kind = 'secondary', className = '', style, disabled, onMouseEnter, onMouseLeave, ...props }) {
+  const [hov, setHov] = useState(false)
+  const pal = kind === 'primary'
+    ? { backgroundColor: hov ? '#a95236' : '#c96442', color: '#faf9f5', borderColor: hov ? '#a95236' : '#c96442' }
+    : kind === 'icon'
+    ? { backgroundColor: hov ? '#f0eee6' : 'transparent', color: hov ? '#c96442' : '#5e5d59', borderColor: 'transparent' }
+    : { backgroundColor: hov ? '#f0eee6' : '#faf9f5', color: '#141413', borderColor: hov ? '#c96442' : '#5e5d59' }
+  return jsx('button', {
+    type: 'button', ...props, disabled,
+    onMouseEnter: e => { setHov(true); if (onMouseEnter) onMouseEnter(e) },
+    onMouseLeave: e => { setHov(false); if (onMouseLeave) onMouseLeave(e) },
+    className: cn('px-3 py-1.5 text-[11px] font-semibold', className),
+    style: {
+      borderRadius: 8, borderWidth: 1, borderStyle: 'solid', cursor: disabled ? 'default' : 'pointer',
+      opacity: disabled ? 0.5 : 1, boxShadow: kind === 'primary' ? '0 1px 2px rgba(0,0,0,0.25)' : 'none',
+      ...pal, ...(style || {}),
+    },
+  })
 }
 
 function StartWorktreeButton({ item }) {
@@ -576,21 +598,21 @@ function StartWorktreeButton({ item }) {
 }
 
 function LabelChip({ label }) {
-  return jsx('span', { className: 'truncate rounded bg-[#f0eee6] px-1 text-[9px] text-(--ui-text-tertiary)', children: label })
+  return jsx('span', { className: 'truncate rounded bg-[#f0eee6] px-1 text-[9px] text-(--ui-text-tertiary)', style: { ...ST_DEEP, ...ST_MUTED }, children: label })
 }
 
 function TaskCard({ item }) {
-  return jsxs('div', { className: 'group rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] shadow-[0_2px_12px_rgba(20,20,19,0.06)] hover:border-[#c96442] p-3', style: MONO_STYLE, onClick: () => openTaskDetail(item), children: [
+  return jsxs('div', { className: 'group rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] shadow-[0_2px_12px_rgba(20,20,19,0.06)] hover:border-[#c96442] p-3', style: { ...MONO_STYLE, ...ST_CARD }, onClick: () => openTaskDetail(item), children: [
     jsxs('div', { className: 'flex items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-0 flex-1', children: [
-        jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-[#5e5d59]', children: [
+        jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-[#5e5d59]', style: ST_MUTED, children: [
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
-          jsx('span', { className: 'truncate font-medium text-[#141413]', children: item.repo }),
+          jsx('span', { className: 'truncate font-medium text-[#141413]', style: ST_TEXT, children: item.repo }),
           jsx('span', { children: `#${item.number}` }),
           jsx('span', { className: 'ml-1 shrink-0 font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
         ] }),
-        jsx('div', { className: 'mt-1 line-clamp-2 text-sm text-[#141413] font-semibold', children: item.title }),
-        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-[#5e5d59]', children: [
+        jsx('div', { className: 'mt-1 line-clamp-2 text-sm text-[#141413] font-semibold', style: ST_TEXT, children: item.title }),
+        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-[#5e5d59]', style: ST_MUTED, children: [
           jsx('span', { children: item.author || '—' }),
           jsx('span', { children: '·' }),
           jsx('span', { children: formatTaskAge(item.updatedAt) }),
@@ -609,11 +631,13 @@ function RepoFilterRow({ repos, selected, onChange }) {
   return jsxs('div', { className: 'flex flex-wrap gap-1', children: [
     ...(repos || []).map(r => jsx('button', {
       key: r, type: 'button',
-      className: cn('rounded-full border px-2 py-0.5 text-[10px]',
-        selected.includes(r) ? 'border-(--ui-accent) text-(--ui-accent)' : 'border-(--ui-stroke-secondary) text-(--ui-text-tertiary)'),
+      className: 'rounded-full border px-2 py-0.5 text-[10px]',
+      style: selected.includes(r)
+        ? { backgroundColor: '#c96442', borderColor: '#c96442', color: '#faf9f5', fontWeight: 600 }
+        : { backgroundColor: '#faf9f5', borderColor: '#e8e6dc', color: '#5e5d59' },
       onClick: () => toggle(r), children: r.split('/').pop(),
     })),
-    selected.length ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => onChange([]), children: 'clear' }) : null,
+    selected.length ? jsx('button', { type: 'button', className: 'text-[10px]', style: ST_MUTED, onClick: () => onChange([]), children: 'clear' }) : null,
   ] })
 }
 
@@ -625,7 +649,7 @@ function TasksToolbar() {
     $filter.set(next)
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
-  return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-[#e8e6dc] bg-[#faf9f5] p-2', style: MONO_STYLE, children: [
+  return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-[#e8e6dc] bg-[#faf9f5] p-2', style: { ...MONO_STYLE, ...ST_CARD }, children: [
     jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'w-full' }),
     jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
       options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
@@ -645,7 +669,7 @@ function TasksToolbar() {
         onClick: () => set({ group: !filter.group }), children: 'Group' }) }),
     ] }),
     repos.length > 1 ? jsx(RepoFilterRow, { repos, selected: filter.repos, onChange: v => set({ repos: v }) }) : null,
-    jsx('div', { className: 'px-1 text-[9px] text-[#87867f]', children: 'build ' + BUILD_TAG }),
+    jsx('div', { className: 'px-1 text-[9px] text-[#87867f]', style: ST_FAINT, children: 'build ' + BUILD_TAG }),
   ] })
 }
 
@@ -723,18 +747,18 @@ function TaskDetail({ item, onClose }) {
   const authorName = typeof detail.author === 'string' ? detail.author : (detail.author?.login || item.author || '—')
   const stateText = item.isDraft ? 'draft' : String(detail.state || item.state).toLowerCase()
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
-    jsxs('div', { className: 'shrink-0 border-b border-[#e8e6dc] bg-[#faf9f5] px-3 py-2.5', children: [
+    jsxs('div', { className: 'shrink-0 border-b border-[#e8e6dc] bg-[#faf9f5] px-3 py-2.5', style: ST_CARD, children: [
       jsxs('div', { className: 'flex flex-wrap items-start gap-3', children: [
         jsx(PBtn, { kind: 'icon', className: 'mt-0.5 shrink-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
         jsxs('div', { className: 'min-w-0 flex-1', children: [
           jsxs('div', { className: 'flex flex-wrap items-center gap-2', children: [
-            jsxs('span', { className: 'inline-flex items-center gap-1.5 rounded-full bg-[#f0eee6] px-2.5 py-0.5 text-[10px] font-semibold text-[#141413]', children: [
+            jsxs('span', { className: 'inline-flex items-center gap-1.5 rounded-full bg-[#f0eee6] px-2.5 py-0.5 text-[10px] font-semibold text-[#141413]', style: { ...ST_DEEP, ...ST_TEXT }, children: [
               jsx('span', { className: 'size-1.5 rounded-full', style: { background: stateColor(item.state, item.isDraft) } }),
               stateText,
             ] }),
-            jsx('span', { className: 'truncate text-[11px] font-semibold text-[#c96442]', children: itemRef(item) }),
+            jsx('span', { className: 'truncate text-[11px] font-semibold text-[#c96442]', style: ST_ACCENT, children: itemRef(item) }),
           ] }),
-          jsx('div', { className: 'mt-1 text-[15px] font-semibold leading-snug text-[#141413]', children: detail.title || item.title }),
+          jsx('div', { className: 'mt-1 text-[15px] font-semibold leading-snug text-[#141413]', style: ST_TEXT, children: detail.title || item.title }),
         ] }),
         jsxs('div', { className: 'ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2', children: [
           jsx(StartWorktreeButton, { item }),
@@ -748,35 +772,35 @@ function TaskDetail({ item, onClose }) {
       err ? jsx('div', { className: 'mt-2 text-[10px] text-red-400', children: err }) : null,
     ] }),
     jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3', children: [
-      jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', children: [
-        jsx('h3', { className: 'text-[10px] font-bold uppercase tracking-wider text-[#c96442]', children: 'Details' }),
+      jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', style: ST_CARD, children: [
+        jsx('h3', { className: 'text-[10px] font-bold uppercase tracking-wider text-[#c96442]', style: ST_ACCENT, children: 'Details' }),
         jsxs('dl', { className: 'mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]', children: [
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Repository' }),
-          jsx('dd', { className: 'break-words font-medium text-[#141413]', children: item.repo }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Type' }),
-          jsx('dd', { className: 'font-medium text-[#141413]', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Author' }),
-          jsx('dd', { className: 'break-words font-medium text-[#141413]', children: authorName }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Created' }),
-          jsx('dd', { className: 'break-words font-medium text-[#141413]', children: detail.createdAt || item.createdAt || '—' }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Updated' }),
-          jsx('dd', { className: 'break-words font-medium text-[#141413]', children: detail.updatedAt || item.updatedAt || '—' }),
-          (detail.baseRefName || detail.headRefName) ? jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Branch' }) : null,
-          (detail.baseRefName || detail.headRefName) ? jsx('dd', { className: 'break-words font-medium text-[#141413]', children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Labels' }),
-          jsx('dd', { className: 'flex flex-wrap gap-1', children: labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#141413]', children: typeof l === 'string' ? l : l?.name })) : jsx('span', { className: 'text-[#5e5d59]', children: 'None' }) }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Assignees' }),
-          jsx('dd', { className: 'flex flex-wrap gap-1', children: assignees.length ? assignees.map((a, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#5e5d59]', children: typeof a === 'string' ? a : (a?.login || a?.name || 'unknown') })) : jsx('span', { className: 'text-[#5e5d59]', children: 'No one assigned' }) }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Reviewers' }),
-          jsx('dd', { className: 'flex flex-wrap gap-1', children: reviewers.length ? reviewers.map((r, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#5e5d59]', children: typeof r === 'string' ? r : (r?.login || r?.name || 'unknown') })) : jsx('span', { className: 'text-[#5e5d59]', children: 'No reviewers' }) }),
-          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', children: 'Checks' }),
-          jsx('dd', { className: 'flex flex-wrap gap-1', children: checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-[#5e5d59]'), children: (c.conclusion || c.status || 'pending') + ' ' + (c.name || c.context || 'check') })) : jsx('span', { className: 'text-[#5e5d59]', children: 'No checks reported yet' }) }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Repository' }),
+          jsx('dd', { className: 'break-words font-medium text-[#141413]', style: ST_TEXT, children: item.repo }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Type' }),
+          jsx('dd', { className: 'font-medium text-[#141413]', style: ST_TEXT, children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Author' }),
+          jsx('dd', { className: 'break-words font-medium text-[#141413]', style: ST_TEXT, children: authorName }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Created' }),
+          jsx('dd', { className: 'break-words font-medium text-[#141413]', style: ST_TEXT, children: detail.createdAt || item.createdAt || '—' }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Updated' }),
+          jsx('dd', { className: 'break-words font-medium text-[#141413]', style: ST_TEXT, children: detail.updatedAt || item.updatedAt || '—' }),
+          (detail.baseRefName || detail.headRefName) ? jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Branch' }) : null,
+          (detail.baseRefName || detail.headRefName) ? jsx('dd', { className: 'break-words font-medium text-[#141413]', style: ST_TEXT, children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Labels' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#141413]', style: { ...ST_DEEP, ...ST_TEXT }, children: typeof l === 'string' ? l : l?.name })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'None' }) }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Assignees' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: assignees.length ? assignees.map((a, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#5e5d59]', style: { ...ST_DEEP, ...ST_MUTED }, children: typeof a === 'string' ? a : (a?.login || a?.name || 'unknown') })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'No one assigned' }) }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Reviewers' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: reviewers.length ? reviewers.map((r, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#5e5d59]', style: { ...ST_DEEP, ...ST_MUTED }, children: typeof r === 'string' ? r : (r?.login || r?.name || 'unknown') })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'No reviewers' }) }),
+          jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Checks' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-[#5e5d59]'), children: (c.conclusion || c.status || 'pending') + ' ' + (c.name || c.context || 'check') })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'No checks reported yet' }) }),
         ] }),
       ] }),
-      item.kind === 'pr' && item.state === 'OPEN' ? jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', children: [
-        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#5e5d59]', children: 'Merge' }),
+      item.kind === 'pr' && item.state === 'OPEN' ? jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', style: ST_CARD, children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#c96442]', style: ST_ACCENT, children: 'Merge' }),
         jsx('div', { className: 'mt-2', children: jsx(Select, { value: mergeChoice, onValueChange: v => { setMergeChoice(v); void act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --${v}`); setMergeChoice('') })() }, children: [
-          jsx(SelectTrigger, { className: 'h-8 w-full rounded-md border border-[#5e5d59] bg-[#faf9f5] px-3 text-[11px] text-[#141413] transition-colors duration-150 hover:border-[#c96442] hover:bg-[#f0eee6]', children: jsx(SelectValue, { placeholder: 'Choose merge method...' }) }),
+          jsx(SelectTrigger, { className: 'h-8 w-full rounded-md border px-3 text-[11px]', style: { ...ST_CARD, ...ST_TEXT }, children: jsx(SelectValue, { placeholder: 'Choose merge method...' }) }),
           jsxs(SelectContent, { children: [
             jsx(SelectItem, { value: 'merge', children: 'Create merge commit' }),
             jsx(SelectItem, { value: 'squash', children: 'Squash and merge' }),
@@ -784,19 +808,19 @@ function TaskDetail({ item, onClose }) {
           ] }),
         ] }) }),
       ] }) : null,
-      jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', children: [
-        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#5e5d59]', children: 'Description' }),
-        jsx('div', { className: 'mt-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#141413]', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
+      jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', style: ST_CARD, children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#c96442]', style: ST_ACCENT, children: 'Description' }),
+        jsx('div', { className: 'mt-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#141413]', style: ST_TEXT, children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
       ] }),
-      comments.length ? jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', children: [
-        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#5e5d59]', children: 'Comments (' + comments.length + ')' }),
-        jsxs('div', { className: 'mt-2 space-y-2', children: comments.map((c, i) => jsxs('div', { key: i, className: 'rounded-xl border border-[#e8e6dc] bg-[#f0eee6] p-2', children: [
-          jsx('div', { className: 'text-[10px] text-[#5e5d59]', children: (typeof c.author === 'string' ? c.author : (c.author?.login || c.user?.login || 'unknown')) + ' · ' + (c.createdAt || c.created_at || '') }),
-          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#141413]', children: c.body || '' }),
+      comments.length ? jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', style: ST_CARD, children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-[#c96442]', style: ST_ACCENT, children: 'Comments (' + comments.length + ')' }),
+        jsxs('div', { className: 'mt-2 space-y-2', children: comments.map((c, i) => jsxs('div', { key: i, className: 'rounded-xl border border-[#e8e6dc] bg-[#f0eee6] p-2', style: ST_DEEP, children: [
+          jsx('div', { className: 'text-[10px] text-[#5e5d59]', style: ST_MUTED, children: (typeof c.author === 'string' ? c.author : (c.author?.login || c.user?.login || 'unknown')) + ' · ' + (c.createdAt || c.created_at || '') }),
+          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#141413]', style: ST_TEXT, children: c.body || '' }),
         ] })) }),
       ] }) : null,
     ] }) }),
-    jsxs('div', { className: 'shrink-0 border-t border-[#e8e6dc] bg-[#faf9f5] p-2', children: [
+    jsxs('div', { className: 'shrink-0 border-t border-[#e8e6dc] bg-[#faf9f5] p-2', style: ST_CARD, children: [
       jsx(Textarea, { value: body, onChange: e => setBody(e.target.value), placeholder: 'Write a comment...', className: 'min-h-[64px] rounded-xl text-xs' }),
       jsxs('div', { className: 'mt-2 flex items-center gap-2', children: [
         jsx(PBtn, { kind: 'primary', disabled: busy || !body.trim(),
@@ -863,7 +887,7 @@ function TasksStatusChip() {
 }
 
 function TasksView() {
-  return jsxs('div', { className: 'flex h-full min-h-0 flex-col bg-[#f5f4ed]', style: MONO_STYLE, children: [
+  return jsxs('div', { className: 'flex h-full min-h-0 flex-col bg-[#f5f4ed]', style: { ...MONO_STYLE, ...ST_PAGE }, children: [
     jsx(RepoPicker, {}),
     jsx(TasksToolbar, {}),
     jsx('div', { className: 'min-h-0 flex-1', children: jsx(TasksList, {}) }),
