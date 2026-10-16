@@ -595,6 +595,8 @@ function TasksList() {
 }
 
 function TasksPane() {
+  const selected = useValue($selectedTask)
+  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) })
   return jsx(TasksView, {})
 }
 
