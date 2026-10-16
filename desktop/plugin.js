@@ -395,8 +395,19 @@ export async function discoverLocalClones() {
 }
 
 export async function createWorktree(repoRoot, branch, baseRef = '') {
-  await sh(buildWorktreeCommand(repoRoot, branch, baseRef))
-  return `${repoRoot}/.worktrees/${String(branch).replace(/\//g, '-')}`
+  const slug = String(branch).replace(/\//g, '-')
+  let b = branch
+  let dir = `.worktrees/${slug}`
+  try {
+    const exists = await sh(`git -C ${sq(repoRoot)} rev-parse --verify --quiet ${sq('refs/heads/' + branch)} >/dev/null 2>&1 && echo yes || echo no`)
+    if (exists === 'yes') {
+      const suffix = Date.now().toString(36)
+      b = `${branch}-${suffix}`
+      dir = `.worktrees/${slug}-${suffix}`
+    }
+  } catch { /* treat as new branch */ }
+  await sh(`git -C ${sq(repoRoot)} fetch --prune origin && git -C ${sq(repoRoot)} worktree add ${sq(dir)} -b ${sq(b)}${baseRef ? ' ' + sq(baseRef) : ''}`)
+  return `${repoRoot}/${dir}`
 }
 
 export async function startWorktreeSession(item, worktreePath, profile = null) {
