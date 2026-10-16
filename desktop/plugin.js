@@ -601,23 +601,9 @@ function TasksList() {
     ] })
   }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
-  return jsx(ScrollArea, { className: 'h-full', children: jsxs('div', { className: 'min-w-0', children: [
-    grouped ? grouped.map(g => jsxs('div', { key: g.repo, className: 'mt-2', children: [
-      jsx('div', { className: 'sticky top-0 bg-(--ui-bg-secondary) px-2 py-1 text-[11px] font-semibold text-(--ui-text-tertiary)', children: g.repo }),
-      g.items.map(item => jsx(TaskRow, { item }, itemRef(item))),
-    ] })) : jsxs('div', { children: [
-      jsxs('div', { className: 'grid items-center gap-2 px-2 py-1 text-[10px] font-semibold text-(--ui-text-tertiary)', style: { gridTemplateColumns: 'minmax(150px, 1.3fr) 48px minmax(180px, 2.2fr) 74px 92px 54px minmax(170px, 1fr)' }, children: [
-        jsx('span', { children: 'Repository' }),
-        jsx('span', { children: '#' }),
-        jsx('span', { children: 'Title' }),
-        jsx('span', { children: 'State' }),
-        jsx('span', { children: 'Author' }),
-        jsx('span', { children: 'Age' }),
-        jsx('span', { children: 'Actions' }),
-      ] }),
-      rows.map(item => jsx(TaskRow, { item }, itemRef(item))),
-    ] }),
-  ] }) })
+  return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
+    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item }, itemRef(item)))])
+    : rows.map(item => jsx(TaskCard, { item }, itemRef(item))) }) })
 }
 
 function TasksPane() {
