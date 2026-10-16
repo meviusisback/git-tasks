@@ -163,8 +163,15 @@ export function parseListOutput(stdout) {
 export function filterItems(items, { state = 'all', kind = 'all', repos = null, query = '' } = {}) {
   const q = String(query || '').trim().toLowerCase()
   const repoSet = Array.isArray(repos) && repos.length ? new Set(repos) : null
+  const wanted = String(state || 'all').trim().toLowerCase()
   return (Array.isArray(items) ? items : []).filter(it => {
-    if (state !== 'all' && it.state !== String(state).toUpperCase()) return false
+    if (wanted !== 'all') {
+      if (wanted === 'closed') {
+        if (it.state !== 'CLOSED' && it.state !== 'MERGED') return false
+      } else if (it.state !== String(state).toUpperCase()) {
+        return false
+      }
+    }
     if (kind !== 'all' && it.kind !== kind) return false
     if (repoSet && !repoSet.has(it.repo)) return false
     if (!q) return true
