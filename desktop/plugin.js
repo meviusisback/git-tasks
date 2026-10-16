@@ -519,13 +519,11 @@ function TasksToolbar() {
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
   return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
-    jsxs('div', { className: 'flex items-center gap-1.5', children: [
-      jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'min-w-0 flex-1' }),
-      jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }),
-        options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
-    ] }),
-    jsxs('div', { className: 'flex items-center gap-1.5', children: [
-      jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }),
+    jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'w-full' }),
+    jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
+      options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
+    jsxs('div', { className: 'flex flex-wrap items-center gap-1.5', children: [
+      jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full',
         options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }] }),
       jsxs(Select, { value: filter.sort, onValueChange: v => set({ sort: v }), children: [
         jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Sort' }) }),
