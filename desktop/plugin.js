@@ -236,10 +236,7 @@ export function deriveChunkOffsets(byteLength, chunkSize = 3800) {
 
 export function formatViewCmd(item) {
   const entity = item.kind === 'pr' ? 'pr' : 'issue'
-  const fields = item.kind === 'pr'
-    ? 'number,title,body,state,author,createdAt,updatedAt,url,comments,labels,assignees,requestedReviewers,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeable,closedAt'
-    : 'number,title,body,state,author,createdAt,updatedAt,url,comments,labels,assignees,closedAt'
-  return `gh ${entity} view ${Number(item.number)} --repo ${sq(item.repo)} --json ${fields}`
+  return `gh ${entity} view ${Number(item.number)} --repo ${sq(item.repo)} --json number,title,body,state,author,createdAt,url,comments`
 }
 
 export function formatCheckoutCmd(item) {
@@ -381,7 +378,14 @@ export async function setItemState(item, action) {
 }
 
 export async function viewItem(item) {
-  return ghJson(`${GH_PATH} ${formatViewCmd(item)}`)
+  const base = await ghJson(`${GH_PATH} ${formatViewCmd(item)}`)
+  if (!base || item.kind !== 'pr') return base
+  try {
+    const extra = await ghJson(`${GH_PATH} gh pr view ${Number(item.number)} --repo ${sq(item.repo)} --json updatedAt,labels,assignees,requestedReviewers,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeable,closedAt`)
+    return { ...base, ...(extra || {}) }
+  } catch {
+    return base
+  }
 }
 
 export async function discoverLocalClones() {
