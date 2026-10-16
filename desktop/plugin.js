@@ -554,7 +554,18 @@ function TasksList() {
     jsx(Skeleton, { className: 'h-12 w-full rounded-md' }),
     jsx(Skeleton, { className: 'h-12 w-full rounded-md' }),
   ] })
-  if (q.isError) return jsx(ErrorState, { message: String(q.error?.message || q.error), onRetry: () => q.refetch() })
+  if (q.isError) {
+    const msg = String(q.error?.message || q.error)
+    if (typeof console !== 'undefined') console.error('[git-tasks] task list failed:', q.error)
+    return jsxs('div', { className: 'm-2 rounded-lg border border-red-500 bg-red-950/40 p-3 text-sm text-red-200', children: [
+      jsx('div', { className: 'font-semibold', children: 'Failed to load tasks' }),
+      jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-xs', children: msg }),
+      jsxs('div', { className: 'mt-2 flex gap-2', children: [
+        jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => { try { navigator.clipboard?.writeText(msg) } catch {} }, children: 'Copy error' }),
+        jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', onClick: () => q.refetch(), children: 'Retry' }),
+      ] }),
+    ] })
+  }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
   return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
     ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item }, itemRef(item)))])
