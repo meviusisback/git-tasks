@@ -516,6 +516,7 @@ function TaskCard({ item }) {
         ] }),
       ],
     }),
+    jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => openTaskDetail(item), children: 'Open details' }),
     jsx(StartWorktreeButton, { item }),
   ] })
 }
@@ -620,7 +621,7 @@ function TaskDetail({ item, onClose }) {
         onClick: act(() => setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen')),
         children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
       jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
-      jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => host?.os?.openExternal?.(item.url), 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
+      jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
     ] }),
     jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsx('div', { className: 'space-y-3 p-3 text-xs', children: [
       jsx('div', { className: 'font-medium', children: item.title }),
