@@ -331,7 +331,14 @@ export async function ghJson(cmd) {
 }
 
 export async function fetchRepoItems(repos, opts = {}) {
-  return parseListOutput(await shBig(buildListScript(repos, opts)))
+  const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
+  const all = []
+  for (const r of parseRepoList(normalized)) {
+    // per-repo to keep each shell command under the 4 KiB gate and isolate failures
+    const out = await shBig(buildListScript([r], opts))
+    all.push(...parseListOutput(out))
+  }
+  return all
 }
 
 export async function listUserRepos(limit = 50) {
