@@ -553,10 +553,7 @@ function TasksList() {
 }
 
 function TasksPane() {
-  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
-    jsx(TasksToolbar, {}),
-    jsx('div', { className: 'min-h-0 flex-1', children: jsx(TasksList, {}) }),
-  ] })
+  return jsx(TasksView, {})
 }
 
 function TaskDetail({ item, onClose }) {
@@ -602,10 +599,7 @@ function TaskDetail({ item, onClose }) {
 function TasksPage() {
   const selected = useValue($selectedTask)
   if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) })
-  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
-    jsx(TasksToolbar, {}),
-    jsx('div', { className: 'min-h-0 flex-1', children: jsx(TasksList, {}) }),
-  ] })
+  return jsx(TasksView, {})
 }
 
 function RepoSettings() {
@@ -655,6 +649,44 @@ function TasksStatusChip() {
     onClick: () => host.navigate(TASKS_ROUTE),
     children: `${n} open`,
   }) })
+}
+
+function TasksView() {
+  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
+    jsx(RepoPicker, {}),
+    jsx(TasksToolbar, {}),
+    jsx('div', { className: 'min-h-0 flex-1', children: jsx(TasksList, {}) }),
+  ] })
+}
+
+function RepoPicker() {
+  const selected = useValue($selectedRepos)
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const list = useQuery({ queryKey: [ID, 'gh-repos-picker'], queryFn: () => listUserRepos(200), enabled: open, staleTime: 600_000 })
+  const available = useMemo(
+    () => (list.data || []).filter(r => r.repo.toLowerCase().includes(q.toLowerCase())),
+    [list.data, q]
+  )
+  const toggle = repo => persistRepos(pluginCtx, selected.includes(repo) ? selected.filter(r => r !== repo) : [...selected, repo])
+  return jsxs('div', { className: 'relative z-10 shrink-0 border-b border-(--ui-stroke-secondary) px-2 py-1.5', children: [
+    jsxs('div', { className: 'flex items-center gap-2', children: [
+      jsx('span', { className: 'text-[11px] font-medium text-(--ui-text-tertiary)', children: 'Repositories' }),
+      jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
+      selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
+    ] }),
+    open ? jsxs('div', { className: 'absolute left-2 right-2 top-full z-50 mt-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quinary) p-2 shadow-lg', children: [
+      jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
+      jsx('div', { className: 'mt-1 max-h-64 overflow-auto', children:
+        list.isLoading ? jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Loading...' }) :
+        available.map(r => jsx('label', { key: r.repo, className: 'flex items-center gap-2 text-xs', children: [
+          jsx(Checkbox, { checked: selected.includes(r.repo), onCheckedChange: () => toggle(r.repo) }),
+          jsx('span', { className: 'truncate', children: r.repo }),
+          r.private ? jsx('span', { className: 'text-[9px] text-(--ui-text-quaternary)', children: 'private' }) : null,
+        ] }))
+      }),
+    ] }) : null,
+  ] })
 }
 
 export default {
