@@ -393,16 +393,24 @@ export async function createWorktree(repoRoot, branch, baseRef = '') {
 }
 
 export async function startWorktreeSession(item, worktreePath, profile = null) {
-  const res = await host.request('session.create', {
+  const raw = await host.request('session.create', {
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${itemRef(item)} ${item.title}`.slice(0, 120),
     messages: [{ role: 'user', content: formatSeedMessage(item) }],
     ...(profile ? { profile } : {}),
   })
-  const storedId = res?.stored_session_id || res?.session_id
-  if (storedId) host.openSession(storedId, { intent: 'tab' })
-  return res
+  const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
+  const storedId = res?.stored_session_id || res?.storedSessionId || res?.session_id || res?.sessionId || res?.id || res?.session?.stored_session_id || res?.session?.storedSessionId || res?.session?.session_id || res?.session?.id
+  if (!storedId) {
+    throw new Error(`session.create did not return a session id: ${JSON.stringify(raw).slice(0, 300)}`)
+  }
+  try {
+    await host.openSession(storedId, { intent: 'tab' })
+  } catch (e) {
+    throw new Error(`created session but could not open it: ${e?.message || e}`)
+  }
+  return raw
 }
 
 let pluginCtx = null
@@ -466,8 +474,9 @@ function StartWorktreeButton({ item }) {
           if (!root) throw new Error(`No local clone of ${item.repo} under: ${$cloneRoots.get().join(', ')}. Clone it or add its folder in Settings.`)
           await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)))
         } catch (error) {
-          setErr(String(error?.message || error))
-          host.notify?.({ kind: 'error', message: String(error?.message || error) })
+          const msg = String(error?.message || error)
+          setErr(msg)
+          host.notify?.({ kind: 'error', message: msg })
         } finally { setBusy(false) }
       },
       children: busy ? 'Creating...' : 'Start worktree',
