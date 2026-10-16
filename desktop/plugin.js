@@ -494,27 +494,30 @@ function LabelChip({ label }) {
 }
 
 function TaskCard({ item }) {
-  return jsxs('button', {
-    type: 'button',
-    className: cn('w-full rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) px-2.5 py-2 text-left',
-      'hover:border-(--ui-accent) hover:bg-(--ui-bg-quinary)'),
-    onClick: () => openTaskDetail(item),
-    children: [
-      jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-(--ui-text-tertiary)', children: [
-        jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
-        jsx('span', { className: 'truncate font-medium text-(--ui-text-secondary)', children: item.repo }),
-        jsx('span', { children: `#${item.number}` }),
-        jsx('span', { className: 'ml-auto shrink-0', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
-      ] }),
-      jsx('div', { className: 'mt-1 line-clamp-2 text-xs text-(--ui-text-primary)', children: item.title }),
-      jsxs('div', { className: 'mt-1 flex items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
-        jsx('span', { children: item.author || '—' }),
-        jsx('span', { children: '·' }),
-        jsx('span', { children: formatTaskAge(item.updatedAt) }),
-        ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: typeof l === 'string' ? l : l?.name }, typeof l === 'string' ? l : l?.name)),
-      ] }),
-    ],
-  })
+  return jsxs('div', { className: 'flex flex-col gap-1', children: [
+    jsxs('button', {
+      type: 'button',
+      className: cn('w-full rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) px-2.5 py-2 text-left',
+        'hover:border-(--ui-accent) hover:bg-(--ui-bg-quinary)'),
+      onClick: () => openTaskDetail(item),
+      children: [
+        jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-(--ui-text-tertiary)', children: [
+          jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
+          jsx('span', { className: 'truncate font-medium text-(--ui-text-secondary)', children: item.repo }),
+          jsx('span', { children: `#${item.number}` }),
+          jsx('span', { className: 'ml-auto shrink-0', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
+        ] }),
+        jsx('div', { className: 'mt-1 line-clamp-2 text-xs text-(--ui-text-primary)', children: item.title }),
+        jsxs('div', { className: 'mt-1 flex items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
+          jsx('span', { children: item.author || '—' }),
+          jsx('span', { children: '·' }),
+          jsx('span', { children: formatTaskAge(item.updatedAt) }),
+          ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: typeof l === 'string' ? l : l?.name }, typeof l === 'string' ? l : l?.name)),
+        ] }),
+      ],
+    }),
+    jsx(StartWorktreeButton, { item }),
+  ] })
 }
 
 function RepoFilterRow({ repos, selected, onChange }) {
