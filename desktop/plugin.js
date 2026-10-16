@@ -668,6 +668,7 @@ function RepoPicker() {
     () => (list.data || []).filter(r => r.repo.toLowerCase().includes(q.toLowerCase())),
     [list.data, q]
   )
+  useEffect(() => { if (open) void list.refetch() }, [open, list])
   const toggle = repo => persistRepos(pluginCtx, selected.includes(repo) ? selected.filter(r => r !== repo) : [...selected, repo])
   return jsxs('div', { className: 'relative z-10 shrink-0 border-b border-(--ui-stroke-secondary) px-2 py-1.5', children: [
     jsxs('div', { className: 'flex items-center gap-2', children: [
@@ -675,16 +676,20 @@ function RepoPicker() {
       jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
       selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
     ] }),
-    open ? jsxs('div', { className: 'absolute left-2 right-2 top-full z-50 mt-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quinary) p-2 shadow-lg', children: [
-      jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
-      jsx('div', { className: 'mt-1 max-h-64 overflow-auto', children:
-        list.isLoading ? jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Loading...' }) :
-        available.map(r => jsx('label', { key: r.repo, className: 'flex items-center gap-2 text-xs', children: [
-          jsx(Checkbox, { checked: selected.includes(r.repo), onCheckedChange: () => toggle(r.repo) }),
-          jsx('span', { className: 'truncate', children: r.repo }),
-          r.private ? jsx('span', { className: 'text-[9px] text-(--ui-text-quaternary)', children: 'private' }) : null,
-        ] }))
-      }),
+    open ? jsxs('div', { className: 'fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4', onClick: () => setOpen(false), children: [
+      jsxs('div', { className: 'mt-12 w-full max-w-xl rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-4 text-(--ui-text-primary) shadow-2xl', onClick: e => e.stopPropagation(), children: [
+        jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
+        jsx('div', { className: 'mt-2 max-h-80 overflow-auto', children:
+          list.isLoading ? jsx('div', { className: 'p-2 text-[11px] text-(--ui-text-tertiary)', children: 'Loading repositories...' }) :
+          list.isError ? jsx('div', { className: 'p-2 text-[11px] text-red-400', children: String(list.error?.message || list.error) }) :
+          available.length === 0 ? jsx('div', { className: 'p-2 text-[11px] text-(--ui-text-tertiary)', children: 'No repositories found.' }) :
+          available.map(r => jsx('label', { key: r.repo, className: 'flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-(--ui-bg-tertiary)', children: [
+            jsx(Checkbox, { checked: selected.includes(r.repo), onCheckedChange: () => toggle(r.repo) }),
+            jsx('span', { className: 'truncate', children: r.repo }),
+            r.private ? jsx('span', { className: 'text-[9px] text-(--ui-text-quaternary)', children: 'private' }) : null,
+          ] }))
+        }),
+      ] }),
     ] }) : null,
   ] })
 }
