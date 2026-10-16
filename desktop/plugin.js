@@ -469,10 +469,13 @@ function StartWorktreeButton({ item }) {
       onClick: async e => {
         e.stopPropagation(); setErr(''); setBusy(true)
         try {
+          console.log('[git-tasks] start worktree begin', item?.repo, item?.number)
+          window.alert?.('Start worktree clicked: ' + item?.repo + '#' + (item?.number))
           const clones = await discoverLocalClones()
           const root = pickLocalClone(clones, item.repo)
           if (!root) throw new Error(`No local clone of ${item.repo} under: ${$cloneRoots.get().join(', ')}. Clone it or add its folder in Settings.`)
           await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)))
+          window.alert?.('Worktree session opened.')
         } catch (error) {
           const msg = String(error?.message || error)
           setErr(msg)
