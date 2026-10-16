@@ -552,30 +552,28 @@ function LabelChip({ label }) {
 }
 
 function TaskCard({ item }) {
-  return jsxs('div', { className: 'flex flex-col gap-1', children: [
-    jsxs('button', {
-      type: 'button',
-      className: cn('w-full rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) px-2.5 py-2 text-left',
-        'hover:border-(--ui-accent) hover:bg-(--ui-bg-quinary)'),
-      onClick: () => openTaskDetail(item),
-      children: [
+  return jsxs('div', { className: 'group rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3 transition-colors hover:border-(--ui-accent) hover:bg-(--ui-bg-quinary)', onClick: () => openTaskDetail(item), children: [
+    jsxs('div', { className: 'flex items-start gap-2', children: [
+      jsxs('div', { className: 'min-w-0 flex-1', children: [
         jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-(--ui-text-tertiary)', children: [
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
           jsx('span', { className: 'truncate font-medium text-(--ui-text-secondary)', children: item.repo }),
           jsx('span', { children: `#${item.number}` }),
-          jsx('span', { className: 'ml-auto shrink-0', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
+          jsx('span', { className: 'ml-1 shrink-0', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
         ] }),
-        jsx('div', { className: 'mt-1 line-clamp-2 text-xs text-(--ui-text-primary)', children: item.title }),
-        jsxs('div', { className: 'mt-1 flex items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
+        jsx('div', { className: 'mt-1 line-clamp-2 text-sm font-medium text-(--ui-text-primary)', children: item.title }),
+        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
           jsx('span', { children: item.author || '—' }),
           jsx('span', { children: '·' }),
           jsx('span', { children: formatTaskAge(item.updatedAt) }),
           ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: typeof l === 'string' ? l : l?.name }, typeof l === 'string' ? l : l?.name)),
         ] }),
-      ],
-    }),
-    jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => openTaskDetail(item), children: 'Open details' }),
-    jsx(StartWorktreeButton, { item }),
+      ] }),
+      jsxs('div', { className: 'flex shrink-0 flex-col gap-1', children: [
+        jsx(Button, { size: 'sm', variant: 'ghost', className: 'rounded-full px-2 py-0.5 text-[10px] font-medium', onClick: e => { e.stopPropagation(); openTaskDetail(item) }, children: 'Open' }),
+        jsx(StartWorktreeButton, { item }),
+      ] }),
+    ] }),
   ] })
 }
 
