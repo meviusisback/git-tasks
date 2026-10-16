@@ -333,7 +333,10 @@ export async function fetchRepoItems(repos, opts = {}) {
 }
 
 export async function listUserRepos(limit = 200) {
-  const rows = await ghJson(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner,isPrivate,updatedAt`)
+  const out = await shBig(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner,isPrivate,updatedAt`)
+  if (!out) return []
+  let rows
+  try { rows = JSON.parse(out) } catch { throw new Error('gh JSON parse failed: ' + out.slice(0, 300)) }
   return (Array.isArray(rows) ? rows : []).map(r => ({ repo: r.nameWithOwner, private: !!r.isPrivate, updatedAt: r.updatedAt || '' }))
 }
 
@@ -672,7 +675,8 @@ function RepoPicker() {
     setError('')
     setLoading(true)
     setRepos(null)
-    void listUserRepos(200)
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Loading repositories timed out after 5 seconds')), 5000))
+    void Promise.race([listUserRepos(200), timeout])
       .then(result => { if (!cancelled) { setRepos(Array.isArray(result) ? result : []); setLoading(false) } })
       .catch(e => { if (!cancelled) { setError(String(e?.message || e)); setLoading(false) } })
     return () => { cancelled = true }
