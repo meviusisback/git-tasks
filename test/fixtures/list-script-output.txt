@@ -1,0 +1,9 @@
+@@R meviusisback/omarchy-ai-subs pr
+[{"number":9,"title":"feat(deepseek): pricing clock","state":"MERGED","isDraft":false,"author":{"login":"meviusisback"},"createdAt":"2026-10-12T20:04:44Z","updatedAt":"2026-10-12T20:08:27Z","labels":[],"url":"https://github.com/meviusisback/omarchy-ai-subs/pull/9"}]
+@@R meviusisback/omarchy-ai-subs issue
+[]
+@@R meviusisback/omarchy-hw-monitor pr
+[{"number":4,"title":"fix(probe): two hardware detection fixes","state":"OPEN","isDraft":false,"author":{"login":"trevorwdunn"},"createdAt":"2026-10-12T18:13:32Z","updatedAt":"2026-10-12T20:08:43Z","labels":[],"url":"https://github.com/meviusisback/omarchy-hw-monitor/pull/4"}]
+@@R meviusisback/omarchy-hw-monitor issue
+@@R meviusisback/broken/repo pr
+not json at all

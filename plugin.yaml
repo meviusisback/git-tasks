@@ -1,0 +1,11 @@
+name: git-tasks
+version: "0.1.0"
+description: Multi-repo issues & PRs in an Orca-style Tasks view for Hermes Desktop. Data via the connected gh CLI.
+manifest_version: 1
+requires_hermes: ">=0.21.1"
+author: Alberto
+license: MIT
+capabilities: []
+kind: standalone
+requires_env: []
+python_dependencies: []
