@@ -701,7 +701,7 @@ function TaskDetail({ item, onClose }) {
       jsx('span', { className: 'min-w-0 flex-1 truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
       jsx(StartWorktreeButton, { item }),
       jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy,
-        onClick: act(() => setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen')),
+        onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
         children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
       jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
       jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
