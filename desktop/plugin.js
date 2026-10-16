@@ -22,6 +22,7 @@ export const STORAGE_KEY_FILTER = 'filter'
 export const STORAGE_KEY_WORKTREE_SESSIONS = 'worktreeSessions'
 export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
+export const MONO_STYLE = { fontFamily: '\u0027JetBrainsMono Nerd Font\u0027, ui-monospace, SFMono-Regular, Menlo, monospace' }
 
 // Registry areas as string literals: works even if a host build omits named exports.
 export const ROUTES_AREA_LIT = 'routes'
@@ -539,9 +540,9 @@ function StartWorktreeButton({ item }) {
   }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(Button, {
-      size: 'sm', className: 'rounded-full px-2 py-0.5 text-[10px] font-medium', disabled: busy,
+      size: 'sm', className: 'rounded-xl px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-all hover:shadow-md', disabled: busy,
       onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
-      children: busy ? '...' : (existingPath ? 'Go' : 'Start'),
+      children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
     }),
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
   ] })
@@ -552,8 +553,8 @@ function LabelChip({ label }) {
 }
 
 function TaskCard({ item }) {
-  return jsxs('div', { className: 'group rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3 transition-colors hover:border-(--ui-accent) hover:bg-(--ui-bg-quinary)', onClick: () => openTaskDetail(item), children: [
-    jsxs('div', { className: 'flex items-start gap-2', children: [
+  return jsxs('div', { className: 'group rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3 transition-all hover:border-(--ui-accent) hover:bg-(--ui-bg-quinary)', style: MONO_STYLE, onClick: () => openTaskDetail(item), children: [
+    jsxs('div', { className: 'flex items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-0 flex-1', children: [
         jsxs('div', { className: 'flex items-center gap-1.5 text-[10px] text-(--ui-text-tertiary)', children: [
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
@@ -569,8 +570,7 @@ function TaskCard({ item }) {
           ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: typeof l === 'string' ? l : l?.name }, typeof l === 'string' ? l : l?.name)),
         ] }),
       ] }),
-      jsxs('div', { className: 'flex shrink-0 flex-col gap-1', children: [
-        jsx(Button, { size: 'sm', variant: 'ghost', className: 'rounded-full px-2 py-0.5 text-[10px] font-medium', onClick: e => { e.stopPropagation(); openTaskDetail(item) }, children: 'Open' }),
+      jsx('div', { className: 'flex shrink-0 items-center', children: [
         jsx(StartWorktreeButton, { item }),
       ] }),
     ] }),
@@ -598,7 +598,7 @@ function TasksToolbar() {
     $filter.set(next)
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
-  return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
+  return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) p-2', style: MONO_STYLE, children: [
     jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'w-full' }),
     jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
       options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
@@ -693,7 +693,7 @@ function TaskDetail({ item, onClose }) {
   const reviewers = Array.isArray(detail.requestedReviewers) ? detail.requestedReviewers : []
   const checks = Array.isArray(detail.statusCheckRollup) ? detail.statusCheckRollup : []
   const authorName = typeof detail.author === 'string' ? detail.author : (detail.author?.login || item.author || '—')
-  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
+  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
     jsxs('div', { className: 'flex shrink-0 flex-wrap items-center gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
       jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
       jsx('span', { className: 'min-w-0 flex-1 truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
@@ -777,7 +777,7 @@ function RepoSettings() {
     [list.data, q]
   )
   const toggle = repo => persistRepos(pluginCtx, repos.includes(repo) ? repos.filter(r => r !== repo) : [...repos, repo])
-  return jsxs('div', { className: 'flex flex-col gap-2 p-3', children: [
+  return jsxs('div', { className: 'flex flex-col gap-2 p-3', style: MONO_STYLE, children: [
     jsx('div', { className: 'text-xs text-(--ui-text-tertiary)', children: 'Repositories shown in the Tasks view' }),
     jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
     jsx('div', { className: 'flex min-h-0 flex-1 flex-col gap-1 overflow-auto', children:
@@ -794,7 +794,7 @@ function CloneRootsSettings() {
   const roots = useValue($cloneRoots)
   const [text, setText] = useState(roots.join('\n'))
   const [saved, setSaved] = useState(false)
-  return jsxs('div', { className: 'flex flex-col gap-2 p-3', children: [
+  return jsxs('div', { className: 'flex flex-col gap-2 p-3', style: MONO_STYLE, children: [
     jsx('div', { className: 'text-xs text-(--ui-text-tertiary)', children: 'Folders scanned for local git checkouts (one per line, ~ allowed)' }),
     jsx(Textarea, { value: text, onChange: e => { setText(e.target.value); setSaved(false) }, className: 'min-h-[120px] font-mono text-xs' }),
     jsxs('div', { className: 'flex items-center gap-2', children: [
@@ -812,13 +812,14 @@ function TasksStatusChip() {
   return jsx(Tip, { label: `${n} open across ${repos.length} repos`, children: jsx('button', {
     type: 'button',
     className: cn('inline-flex h-full items-center gap-1 px-1.5 text-[0.6875rem] text-(--ui-text-tertiary) hover:text-foreground'),
+    style: MONO_STYLE,
     onClick: () => host.navigate(TASKS_ROUTE),
     children: `${n} open`,
   }) })
 }
 
 function TasksView() {
-  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
+  return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
     jsx(RepoPicker, {}),
     jsx(TasksToolbar, {}),
     jsx('div', { className: 'min-h-0 flex-1', children: jsx(TasksList, {}) }),
@@ -849,7 +850,7 @@ function RepoPicker() {
     [repos, q]
   )
   const toggle = repo => persistRepos(pluginCtx, selected.includes(repo) ? selected.filter(r => r !== repo) : [...selected, repo])
-  return jsxs('div', { className: 'relative z-10 shrink-0 border-b border-(--ui-stroke-secondary) px-2 py-1.5', children: [
+  return jsxs('div', { className: 'relative z-10 shrink-0 border-b border-(--ui-stroke-secondary) px-2 py-1.5', style: MONO_STYLE, children: [
     jsxs('div', { className: 'flex items-center gap-2', children: [
       jsx('span', { className: 'text-[11px] font-medium text-(--ui-text-tertiary)', children: 'Repositories' }),
       jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
