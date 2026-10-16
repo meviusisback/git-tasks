@@ -663,12 +663,24 @@ function RepoPicker() {
   const selected = useValue($selectedRepos)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
-  const list = useQuery({ queryKey: [ID, 'gh-repos-picker'], queryFn: () => listUserRepos(200), enabled: open, staleTime: 600_000 })
+  const [repos, setRepos] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setError('')
+    setLoading(true)
+    setRepos(null)
+    void listUserRepos(200)
+      .then(result => { if (!cancelled) { setRepos(Array.isArray(result) ? result : []); setLoading(false) } })
+      .catch(e => { if (!cancelled) { setError(String(e?.message || e)); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [open])
   const available = useMemo(
-    () => (list.data || []).filter(r => r.repo.toLowerCase().includes(q.toLowerCase())),
-    [list.data, q]
+    () => (repos || []).filter(r => r.repo.toLowerCase().includes(q.toLowerCase())),
+    [repos, q]
   )
-  useEffect(() => { if (open) void list.refetch() }, [open, list])
   const toggle = repo => persistRepos(pluginCtx, selected.includes(repo) ? selected.filter(r => r !== repo) : [...selected, repo])
   return jsxs('div', { className: 'relative z-10 shrink-0 border-b border-(--ui-stroke-secondary) px-2 py-1.5', children: [
     jsxs('div', { className: 'flex items-center gap-2', children: [
@@ -680,8 +692,8 @@ function RepoPicker() {
       jsxs('div', { className: 'mt-12 w-full max-w-xl rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-4 text-(--ui-text-primary) shadow-2xl', onClick: e => e.stopPropagation(), children: [
         jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
         jsx('div', { className: 'mt-2 max-h-80 overflow-auto', children:
-          list.isLoading ? jsx('div', { className: 'p-2 text-[11px] text-(--ui-text-tertiary)', children: 'Loading repositories...' }) :
-          list.isError ? jsx('div', { className: 'p-2 text-[11px] text-red-400', children: String(list.error?.message || list.error) }) :
+          loading ? jsx('div', { className: 'p-2 text-[11px] text-(--ui-text-tertiary)', children: 'Loading repositories...' }) :
+          error ? jsx('div', { className: 'p-2 text-[11px] text-red-400', children: error }) :
           available.length === 0 ? jsx('div', { className: 'p-2 text-[11px] text-(--ui-text-tertiary)', children: 'No repositories found.' }) :
           available.map(r => jsx('label', { key: r.repo, className: 'flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-(--ui-bg-tertiary)', children: [
             jsx(Checkbox, { checked: selected.includes(r.repo), onCheckedChange: () => toggle(r.repo) }),
