@@ -310,15 +310,17 @@ async function shHome() {
 async function shBig(cmd) {
   const tag = `gittasks.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const raw = `/tmp/${tag}.raw`
-  const b64 = `/tmp/${tag}.b64`
+  const hex = `/tmp/${tag}.hex`
   try {
-    await sh(`${cmd} > ${sq(raw)} && base64 < ${sq(raw)} > ${sq(b64)}`)
-    const byteLength = Number(await sh(`wc -c < ${sq(b64)}`))
-    const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${sq(b64)} | head -c 3800`))
-    const bin = atob(out.replace(/\s+/g, ''))
-    return new TextDecoder('utf-8').decode(Uint8Array.from(bin, c => c.charCodeAt(0)))
+    await sh(`${cmd} > ${sq(raw)} && python3 -c 'import sys; print(open(sys.argv[1], "rb").read().hex())' ${sq(raw)} > ${sq(hex)}`)
+    const byteLength = Number(await sh(`wc -c < ${sq(hex)}`))
+    const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${sq(hex)} | head -c 3800`))
+    const hexStr = out.replace(/\s+/g, '')
+    const bytes = []
+    for (let i = 0; i + 1 < hexStr.length; i += 2) bytes.push(parseInt(hexStr.slice(i, i + 2), 16))
+    return new TextDecoder('utf-8').decode(Uint8Array.from(bytes))
   } finally {
-    sh(`unlink ${sq(raw)} 2>/dev/null; unlink ${sq(b64)} 2>/dev/null`).catch(() => {})
+    sh(`unlink ${sq(raw)} 2>/dev/null; unlink ${sq(hex)} 2>/dev/null`).catch(() => {})
   }
 }
 
