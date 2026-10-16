@@ -19,6 +19,7 @@ export const ID = 'git-tasks'
 export const TASKS_ROUTE = '/tasks'
 export const STORAGE_KEY_REPOS = 'selectedRepos'
 export const STORAGE_KEY_FILTER = 'filter'
+export const STORAGE_KEY_WORKTREE_SESSIONS = 'worktreeSessions'
 export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
 
@@ -428,6 +429,11 @@ export async function startWorktreeSession(item, worktreePath, profile = null) {
   } catch (e) {
     throw new Error(`created session but could not open it: ${e?.message || e}`)
   }
+  if (pluginCtx) {
+    const map = pluginCtx.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {}
+    map[itemRef(item)] = storedId
+    pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+  }
   return raw
 }
 
@@ -481,24 +487,61 @@ function useRepoItems() {
 function StartWorktreeButton({ item }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [existingPath, setExistingPath] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      try {
+        const clones = await discoverLocalClones()
+        const root = pickLocalClone(clones, item.repo)
+        if (!root) { if (!cancelled) setExistingPath(null); return }
+        const slug = deriveBranchName(item).replace(/\//g, '-')
+        const path = `${root}/.worktrees/${slug}`
+        const yes = await sh(`[ -d ${sq(path)} ] && echo yes || echo no`)
+        if (!cancelled) setExistingPath(yes === 'yes' ? path : null)
+      } catch {
+        if (!cancelled) setExistingPath(null)
+      }
+    }
+    void check()
+    return () => { cancelled = true }
+  }, [item.repo, item.number, item.title])
+  const openExisting = async () => {
+    setBusy(true); setErr('')
+    try {
+      const map = (pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {})
+      const id = map[itemRef(item)]
+      if (id) {
+        await host.openSession(id, { intent: 'tab' })
+        host.notify?.({ kind: 'success', message: 'Opened existing worktree session.' })
+      } else {
+        await startWorktreeSession(item, existingPath)
+      }
+    } catch (error) {
+      const msg = String(error?.message || error)
+      setErr(msg)
+      host.notify?.({ kind: 'error', message: msg })
+    } finally { setBusy(false) }
+  }
+  const startNew = async () => {
+    setBusy(true); setErr('')
+    try {
+      const clones = await discoverLocalClones()
+      const root = pickLocalClone(clones, item.repo)
+      if (!root) throw new Error(`No local clone of ${item.repo} under: ${$cloneRoots.get().join(', ')}. Clone it or add its folder in Settings.`)
+      await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)))
+      host.notify?.({ kind: 'success', message: 'Worktree session opened.' })
+    } catch (error) {
+      const msg = String(error?.message || error)
+      setErr(msg)
+      host.notify?.({ kind: 'error', message: msg })
+    } finally { setBusy(false) }
+  }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(Button, {
       size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy,
-      onClick: async e => {
-        e.stopPropagation(); setBusy(true)
-        try {
-          const clones = await discoverLocalClones()
-          const root = pickLocalClone(clones, item.repo)
-          if (!root) throw new Error(`No local clone of ${item.repo} under: ${$cloneRoots.get().join(', ')}. Clone it or add its folder in Settings.`)
-          await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)))
-          host.notify?.({ kind: 'success', message: 'Worktree session opened.' })
-        } catch (error) {
-          const msg = String(error?.message || error)
-          setErr(msg)
-          host.notify?.({ kind: 'error', message: msg })
-        } finally { setBusy(false) }
-      },
-      children: busy ? 'Creating...' : 'Start worktree',
+      onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
+      children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start worktree'),
     }),
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
   ] })
