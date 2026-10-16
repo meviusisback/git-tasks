@@ -236,7 +236,10 @@ export function deriveChunkOffsets(byteLength, chunkSize = 3800) {
 
 export function formatViewCmd(item) {
   const entity = item.kind === 'pr' ? 'pr' : 'issue'
-  return `gh ${entity} view ${Number(item.number)} --repo ${sq(item.repo)} --json number,title,body,state,author,createdAt,url,comments`
+  const fields = item.kind === 'pr'
+    ? 'number,title,body,state,author,createdAt,updatedAt,url,comments,labels,assignees,requestedReviewers,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeable,closedAt'
+    : 'number,title,body,state,author,createdAt,updatedAt,url,comments,labels,assignees,closedAt'
+  return `gh ${entity} view ${Number(item.number)} --repo ${sq(item.repo)} --json ${fields}`
 }
 
 export function formatCheckoutCmd(item) {
@@ -629,8 +632,12 @@ function TaskDetail({ item, onClose }) {
   const detail = (view.data && typeof view.data === 'object') ? view.data : {}
   const labels = Array.isArray(detail.labels) ? detail.labels : (Array.isArray(item.labels) ? item.labels : [])
   const comments = Array.isArray(detail.comments) ? detail.comments : []
+  const assignees = Array.isArray(detail.assignees) ? detail.assignees : []
+  const reviewers = Array.isArray(detail.requestedReviewers) ? detail.requestedReviewers : []
+  const checks = Array.isArray(detail.statusCheckRollup) ? detail.statusCheckRollup : []
+  const authorName = typeof detail.author === 'string' ? detail.author : (detail.author?.login || item.author || '—')
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', children: [
-    jsxs('div', { className: 'flex shrink-0 items-center gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
+    jsxs('div', { className: 'flex shrink-0 flex-wrap items-center gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
       jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
       jsx('span', { className: 'min-w-0 flex-1 truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
       jsx(StartWorktreeButton, { item }),
@@ -641,27 +648,37 @@ function TaskDetail({ item, onClose }) {
       jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
     ] }),
     jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3 text-xs', children: [
-      jsx('h2', { className: 'text-sm font-semibold text-(--ui-text-primary)', children: detail.title || item.title }),
-      jsxs('div', { className: 'grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', children: [
+      jsx('h2', { className: 'text-sm font-semibold text-(--ui-text-primary) break-words', children: detail.title || item.title }),
+      jsxs('div', { className: 'grid grid-cols-1 gap-y-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2 sm:grid-cols-[100px_minmax(0,1fr)]', children: [
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Repository' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: item.repo }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary) break-words', children: item.repo }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Type' }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'State' }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.state || item.state }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Author' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: (typeof (detail.author) === 'string' ? detail.author : (detail.author?.login || item.author || '—')) }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary) break-words', children: authorName }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Created' }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.createdAt || item.createdAt }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Updated' }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.updatedAt || item.updatedAt }),
+        (detail.baseRefName || detail.headRefName) ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Branch' }) : null,
+        (detail.baseRefName || detail.headRefName) ? jsx('span', { className: 'text-[10px] text-(--ui-text-secondary) break-words', children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
         labels.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Labels' }) : null,
         labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof l === 'string' ? l : l?.name })) : null,
+        assignees.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Assignees' }) : null,
+        assignees.length ? assignees.map((a, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof a === 'string' ? a : (a?.login || a?.name || 'unknown') })) : null,
+        reviewers.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Reviewers' }) : null,
+        reviewers.length ? reviewers.map((r, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof r === 'string' ? r : (r?.login || r?.name || 'unknown') })) : null,
+        checks.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Checks' }) : null,
+        checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded bg-(--ui-bg-quinary) px-1 text-[9px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-(--ui-text-quaternary)'), children: (c.conclusion || c.status || 'pending') + ' ' + (c.name || c.context || 'check') })) : null,
       ] }),
-      jsx('div', { className: 'whitespace-pre-wrap text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || item.title ? (detail.body || 'No description.') : 'No description.') }),
+      jsx('div', { className: 'whitespace-pre-wrap break-words text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
       comments.length ? jsxs('div', { className: 'space-y-2', children: [
-        jsx('div', { className: 'text-[11px] font-semibold text-(--ui-text-tertiary)', children: `Comments (${comments.length})` }),
+        jsx('div', { className: 'text-[11px] font-semibold text-(--ui-text-tertiary)', children: 'Comments (' + comments.length + ')' }),
         comments.map((c, i) => jsxs('div', { key: i, className: 'rounded border border-(--ui-stroke-secondary) p-2', children: [
-          jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: (c.author?.login || c.user?.login || 'unknown') + ' · ' + (c.createdAt || c.created_at || '') }),
-          jsx('div', { className: 'mt-1 whitespace-pre-wrap text-(--ui-text-secondary)', children: c.body || '' }),
+          jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: (typeof c.author === 'string' ? c.author : (c.author?.login || c.user?.login || 'unknown')) + ' · ' + (c.createdAt || c.created_at || '') }),
+          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-(--ui-text-secondary)', children: c.body || '' }),
         ] })),
       ] }) : null,
     ] }) }),
