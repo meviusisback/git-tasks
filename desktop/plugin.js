@@ -650,7 +650,7 @@ function TaskDetail({ item, onClose }) {
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'State' }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.state || item.state }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Author' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.author || item.author }),
+        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: (typeof (detail.author) === 'string' ? detail.author : (detail.author?.login || item.author || '—')) }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Created' }),
         jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.createdAt || item.createdAt }),
         labels.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Labels' }) : null,
