@@ -693,71 +693,84 @@ function TaskDetail({ item, onClose }) {
   const reviewers = Array.isArray(detail.requestedReviewers) ? detail.requestedReviewers : []
   const checks = Array.isArray(detail.statusCheckRollup) ? detail.statusCheckRollup : []
   const authorName = typeof detail.author === 'string' ? detail.author : (detail.author?.login || item.author || '—')
+  const stateText = item.isDraft ? 'draft' : String(detail.state || item.state).toLowerCase()
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
-    jsxs('div', { className: 'flex shrink-0 flex-wrap items-center gap-1.5 border-b border-(--ui-stroke-secondary) p-2', children: [
-      jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
-      jsx('span', { className: 'min-w-0 flex-1 truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
-      jsx(StartWorktreeButton, { item }),
-      jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy,
-        onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
-        children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
-      jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
-      jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
-    ] }),
-    jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3 text-xs', children: [
-      jsx('h2', { className: 'text-sm font-semibold text-(--ui-text-primary) break-words', children: detail.title || item.title }),
-      jsxs('div', { className: 'grid grid-cols-1 gap-y-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2 sm:grid-cols-[100px_minmax(0,1fr)]', children: [
-        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Repository' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary) break-words', children: item.repo }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Type' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'State' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.state || item.state }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Author' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary) break-words', children: authorName }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Created' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.createdAt || item.createdAt }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Updated' }),
-        jsx('span', { className: 'text-[10px] text-(--ui-text-secondary)', children: detail.updatedAt || item.updatedAt }),
-        (detail.baseRefName || detail.headRefName) ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Branch' }) : null,
-        (detail.baseRefName || detail.headRefName) ? jsx('span', { className: 'text-[10px] text-(--ui-text-secondary) break-words', children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
-        labels.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Labels' }) : null,
-        labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof l === 'string' ? l : l?.name })) : jsx('span', { className: 'text-[10px] text-(--ui-text-quaternary)', children: 'None' }),
-        assignees.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Assignees' }) : null,
-        assignees.length ? assignees.map((a, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof a === 'string' ? a : (a?.login || a?.name || 'unknown') })) : jsx('span', { className: 'text-[10px] text-(--ui-text-quaternary)', children: 'No one assigned' }),
-        reviewers.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Reviewers' }) : null,
-        reviewers.length ? reviewers.map((r, i) => jsx('span', { key: i, className: 'rounded bg-(--ui-bg-quinary) px-1 text-[9px] text-(--ui-text-tertiary)', children: typeof r === 'string' ? r : (r?.login || r?.name || 'unknown') })) : jsx('span', { className: 'text-[10px] text-(--ui-text-quaternary)', children: 'No reviewers' }),
-        checks.length ? jsx('span', { className: 'text-[10px] text-(--ui-text-tertiary)', children: 'Checks' }) : null,
-        checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded bg-(--ui-bg-quinary) px-1 text-[9px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-(--ui-text-quaternary)'), children: (c.conclusion || c.status || 'pending') + ' ' + (c.name || c.context || 'check') })) : jsx('span', { className: 'text-[10px] text-(--ui-text-quaternary)', children: 'No checks reported yet' }),
-      ] }),
-      item.kind === 'pr' && item.state === 'OPEN' ? jsxs('div', { className: 'rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', children: [
-        jsx('div', { className: 'text-[11px] font-semibold text-(--ui-text-tertiary)', children: 'Merge' }),
-        jsxs('div', { className: 'mt-1 flex flex-wrap gap-1.5', children: [
-          jsx(Select, { value: mergeChoice, onValueChange: v => { setMergeChoice(v); void act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --${v}`); setMergeChoice('') })() }, children: [
-            jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Merge...' }) }),
-            jsxs(SelectContent, { children: [
-              jsx(SelectItem, { value: 'merge', children: 'Create merge commit' }),
-              jsx(SelectItem, { value: 'squash', children: 'Squash and merge' }),
-              jsx(SelectItem, { value: 'rebase', children: 'Rebase and merge' }),
-            ] }),
+    jsxs('div', { className: 'shrink-0 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) px-3 py-2.5', children: [
+      jsxs('div', { className: 'flex items-start gap-2', children: [
+        jsx(Button, { variant: 'ghost', size: 'sm', className: 'mt-0.5 h-7 w-7 shrink-0 p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
+        jsxs('div', { className: 'min-w-0 flex-1', children: [
+          jsxs('div', { className: 'flex flex-wrap items-center gap-2', children: [
+            jsx('span', { className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: stateText }),
+            jsx('span', { className: 'truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
           ] }),
+          jsx('div', { className: 'mt-1 text-sm font-semibold leading-snug text-(--ui-text-primary)', children: detail.title || item.title }),
         ] }),
+      ] }),
+      jsxs('div', { className: 'mt-2 flex flex-wrap items-center gap-2 pl-9', children: [
+        jsx(StartWorktreeButton, { item }),
+        jsx(Button, { size: 'sm', className: 'rounded-xl px-3 py-1.5 text-[11px] font-semibold', disabled: busy,
+          onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
+          children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
+        jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
+        jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
+        err ? jsx('span', { className: 'text-[10px] text-red-400', children: err }) : null,
+      ] }),
+    ] }),
+    jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3', children: [
+      jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Details' }),
+        jsxs('dl', { className: 'mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]', children: [
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Repository' }),
+          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: item.repo }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Type' }),
+          jsx('dd', { className: 'text-(--ui-text-secondary)', children: item.kind === 'pr' ? 'Pull request' : 'Issue' }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Author' }),
+          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: authorName }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Created' }),
+          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: detail.createdAt || item.createdAt || '—' }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Updated' }),
+          jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: detail.updatedAt || item.updatedAt || '—' }),
+          (detail.baseRefName || detail.headRefName) ? jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Branch' }) : null,
+          (detail.baseRefName || detail.headRefName) ? jsx('dd', { className: 'break-words text-(--ui-text-secondary)', children: (detail.headRefName ? detail.headRefName + ' -> ' : '') + (detail.baseRefName || '') }) : null,
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Labels' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: labels.length ? labels.map((l, i) => jsx('span', { key: i, className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] text-(--ui-text-tertiary)', children: typeof l === 'string' ? l : l?.name })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'None' }) }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Assignees' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: assignees.length ? assignees.map((a, i) => jsx('span', { key: i, className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] text-(--ui-text-tertiary)', children: typeof a === 'string' ? a : (a?.login || a?.name || 'unknown') })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'No one assigned' }) }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Reviewers' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: reviewers.length ? reviewers.map((r, i) => jsx('span', { key: i, className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] text-(--ui-text-tertiary)', children: typeof r === 'string' ? r : (r?.login || r?.name || 'unknown') })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'No reviewers' }) }),
+          jsx('dt', { className: 'text-(--ui-text-tertiary)', children: 'Checks' }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-(--ui-text-quaternary)'), children: (c.conclusion || c.status || 'pending') + ' ' + (c.name || c.context || 'check') })) : jsx('span', { className: 'text-(--ui-text-quaternary)', children: 'No checks reported yet' }) }),
+        ] }),
+      ] }),
+      item.kind === 'pr' && item.state === 'OPEN' ? jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Merge' }),
+        jsx('div', { className: 'mt-2', children: jsx(Select, { value: mergeChoice, onValueChange: v => { setMergeChoice(v); void act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --${v}`); setMergeChoice('') })() }, children: [
+          jsx(SelectTrigger, { className: 'h-8 rounded-xl text-[11px]', children: jsx(SelectValue, { placeholder: 'Choose merge method...' }) }),
+          jsxs(SelectContent, { children: [
+            jsx(SelectItem, { value: 'merge', children: 'Create merge commit' }),
+            jsx(SelectItem, { value: 'squash', children: 'Squash and merge' }),
+            jsx(SelectItem, { value: 'rebase', children: 'Rebase and merge' }),
+          ] }),
+        ] }) }),
       ] }) : null,
-      jsx('div', { className: 'whitespace-pre-wrap break-words text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
-      comments.length ? jsxs('div', { className: 'space-y-2', children: [
-        jsx('div', { className: 'text-[11px] font-semibold text-(--ui-text-tertiary)', children: 'Comments (' + comments.length + ')' }),
-        comments.map((c, i) => jsxs('div', { key: i, className: 'rounded border border-(--ui-stroke-secondary) p-2', children: [
+      jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Description' }),
+        jsx('div', { className: 'mt-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
+      ] }),
+      comments.length ? jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
+        jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)', children: 'Comments (' + comments.length + ')' }),
+        jsxs('div', { className: 'mt-2 space-y-2', children: comments.map((c, i) => jsxs('div', { key: i, className: 'rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) p-2', children: [
           jsx('div', { className: 'text-[10px] text-(--ui-text-tertiary)', children: (typeof c.author === 'string' ? c.author : (c.author?.login || c.user?.login || 'unknown')) + ' · ' + (c.createdAt || c.created_at || '') }),
-          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-(--ui-text-secondary)', children: c.body || '' }),
-        ] })),
+          jsx('div', { className: 'mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-(--ui-text-secondary)', children: c.body || '' }),
+        ] })) }),
       ] }) : null,
     ] }) }),
-    jsxs('div', { className: 'shrink-0 border-t border-(--ui-stroke-secondary) p-2', children: [
-      jsx(Textarea, { value: body, onChange: e => setBody(e.target.value), placeholder: 'Leave a comment...', className: 'min-h-[64px] text-xs' }),
-      jsxs('div', { className: 'mt-1 flex items-center gap-1.5', children: [
-        jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy || !body.trim(),
+    jsxs('div', { className: 'shrink-0 border-t border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) p-2', children: [
+      jsx(Textarea, { value: body, onChange: e => setBody(e.target.value), placeholder: 'Write a comment...', className: 'min-h-[64px] rounded-xl text-xs' }),
+      jsxs('div', { className: 'mt-2 flex items-center gap-2', children: [
+        jsx(Button, { size: 'sm', className: 'rounded-xl px-3 py-1.5 text-[11px] font-semibold', disabled: busy || !body.trim(),
           onClick: act(async () => { await postComment(item, body); setBody('') }), children: 'Comment' }),
-        err ? jsx('span', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
+        err ? jsx('span', { className: 'text-[10px] text-red-400', children: err }) : null,
       ] }),
     ] }),
   ] })
