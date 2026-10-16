@@ -22,6 +22,9 @@ export const STORAGE_KEY_FILTER = 'filter'
 export const STORAGE_KEY_WORKTREE_SESSIONS = 'worktreeSessions'
 export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
+export const BUILD_TAG = 'parchment-20261017-v1'
+if (typeof console !== 'undefined') console.log('[git-tasks] build ' + BUILD_TAG)
+
 export const MONO_STYLE = { fontFamily: '\u0027JetBrainsMono Nerd Font\u0027, ui-monospace, SFMono-Regular, Menlo, monospace' }
 
 export const CC = {
