@@ -688,8 +688,7 @@ function RepoPicker() {
       jsx(Button, { size: 'sm', variant: 'ghost', className: 'h-7 px-2 text-[11px]', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
       selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
     ] }),
-    open ? jsxs('div', { className: 'fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4', onClick: () => setOpen(false), children: [
-      jsxs('div', { className: 'mt-12 w-full max-w-xl rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-4 text-(--ui-text-primary) shadow-2xl', onClick: e => e.stopPropagation(), children: [
+    open ? jsxs('div', { className: 'mt-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-2 text-(--ui-text-primary) shadow-lg', children: [
         jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
         jsx('div', { className: 'mt-2 max-h-80 overflow-auto', children:
           loading ? jsx('div', { className: 'p-2 text-[11px] text-(--ui-text-tertiary)', children: 'Loading repositories...' }) :
@@ -701,8 +700,7 @@ function RepoPicker() {
             r.private ? jsx('span', { className: 'text-[9px] text-(--ui-text-quaternary)', children: 'private' }) : null,
           ] }))
         }),
-      ] }),
-    ] }) : null,
+      ] }) : null,
   ] })
 }
 
