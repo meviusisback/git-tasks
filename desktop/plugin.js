@@ -539,9 +539,9 @@ function StartWorktreeButton({ item }) {
   }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(Button, {
-      size: 'sm', className: 'rounded-full px-3 py-1.5 text-[11px] font-medium shadow-sm hover:shadow-md', disabled: busy,
+      size: 'sm', className: 'rounded-full px-2 py-0.5 text-[10px] font-medium', disabled: busy,
       onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
-      children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start worktree'),
+      children: busy ? '...' : (existingPath ? 'Go' : 'Start'),
     }),
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
   ] })
