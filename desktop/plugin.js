@@ -309,10 +309,11 @@ async function shHome() {
 
 async function shBig(cmd) {
   const tag = `gittasks.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-  const raw = `/tmp/${tag}.raw`
-  const hex = `/tmp/${tag}.hex`
+  const dir = '/home/alberto/.hermes/cache/scratch'
+  const raw = `${dir}/${tag}.raw`
+  const hex = `${dir}/${tag}.hex`
   try {
-    await sh(`${cmd} > ${sq(raw)} && od -An -v -tx1 ${sq(raw)} > ${sq(hex)}`)
+    await sh(`mkdir -p ${sq(dir)} && ${cmd} > ${sq(raw)} && od -An -v -tx1 ${sq(raw)} > ${sq(hex)}`)
     const byteLength = Number(await sh(`wc -c < ${sq(hex)}`))
     const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${sq(hex)} | head -c 3800`))
     const hexStr = out.replace(/\s+/g, '')
