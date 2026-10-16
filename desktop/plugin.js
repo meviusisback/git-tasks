@@ -540,7 +540,7 @@ function StartWorktreeButton({ item }) {
   }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(Button, {
-      size: 'sm', className: 'rounded-xl px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-all hover:shadow-md', disabled: busy,
+      size: 'sm', className: 'rounded-md px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-all hover:shadow-md', disabled: busy,
       onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
       children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
     }),
@@ -696,25 +696,28 @@ function TaskDetail({ item, onClose }) {
   const stateText = item.isDraft ? 'draft' : String(detail.state || item.state).toLowerCase()
   return jsxs('div', { className: 'flex h-full min-h-0 flex-col', style: MONO_STYLE, children: [
     jsxs('div', { className: 'shrink-0 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-tertiary) px-3 py-2.5', children: [
-      jsxs('div', { className: 'flex items-start gap-2', children: [
-        jsx(Button, { variant: 'ghost', size: 'sm', className: 'mt-0.5 h-7 w-7 shrink-0 p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
+      jsxs('div', { className: 'flex flex-wrap items-start gap-3', children: [
+        jsx(Button, { variant: 'ghost', size: 'sm', className: 'mt-0.5 h-7 w-7 shrink-0 rounded-md p-0', onClick: onClose, 'aria-label': 'Back', children: jsx(Codicon, { name: 'chevron-left' }) }),
         jsxs('div', { className: 'min-w-0 flex-1', children: [
           jsxs('div', { className: 'flex flex-wrap items-center gap-2', children: [
-            jsx('span', { className: 'rounded-full bg-(--ui-bg-quinary) px-2 py-0.5 text-[10px] font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: stateText }),
+            jsxs('span', { className: 'inline-flex items-center gap-1.5 rounded-full bg-(--ui-bg-quinary) px-2.5 py-0.5 text-[10px] font-semibold text-(--ui-text-secondary)', children: [
+              jsx('span', { className: 'size-1.5 rounded-full', style: { background: stateColor(item.state, item.isDraft) } }),
+              stateText,
+            ] }),
             jsx('span', { className: 'truncate text-[11px] text-(--ui-text-tertiary)', children: itemRef(item) }),
           ] }),
           jsx('div', { className: 'mt-1 text-sm font-semibold leading-snug text-(--ui-text-primary)', children: detail.title || item.title }),
         ] }),
+        jsxs('div', { className: 'ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2', children: [
+          jsx(StartWorktreeButton, { item }),
+          jsx(Button, { size: 'sm', variant: 'outline', className: 'rounded-md px-3 py-1.5 text-[11px] font-semibold', disabled: busy,
+            onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
+            children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
+          jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
+          jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-8 w-8 rounded-md p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
+        ] }),
       ] }),
-      jsxs('div', { className: 'mt-2 flex flex-wrap items-center gap-2 pl-9', children: [
-        jsx(StartWorktreeButton, { item }),
-        jsx(Button, { size: 'sm', className: 'rounded-xl px-3 py-1.5 text-[11px] font-semibold', disabled: busy,
-          onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
-          children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
-        jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
-        jsx(Button, { variant: 'ghost', size: 'sm', className: 'h-7 w-7 p-0', onClick: () => { void window.hermesDesktop?.openExternal?.(item.url) }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
-        err ? jsx('span', { className: 'text-[10px] text-red-400', children: err }) : null,
-      ] }),
+      err ? jsx('div', { className: 'mt-2 text-[10px] text-red-400', children: err }) : null,
     ] }),
     jsx(ScrollArea, { className: 'min-h-0 flex-1', children: jsxs('div', { className: 'space-y-3 p-3', children: [
       jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', children: [
