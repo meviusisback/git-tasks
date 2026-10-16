@@ -490,7 +490,7 @@ function TaskCard({ item }) {
       jsxs('div', { className: 'mt-1 flex items-center gap-1.5 text-[10px] text-(--ui-text-quaternary)', children: [
         jsx('span', { children: item.author || '—' }),
         jsx('span', { children: '·' }),
-        jsx('span', { children: relativeTime(item.updatedAt) }),
+        jsx('span', { children: relativeTime(Number.isFinite(Date.parse(item.updatedAt || '')) ? Date.parse(item.updatedAt) : Date.now()) }),
         ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: typeof l === 'string' ? l : l?.name }, typeof l === 'string' ? l : l?.name)),
       ] }),
     ],
