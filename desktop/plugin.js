@@ -623,6 +623,7 @@ function TaskDetail({ item, onClose }) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [mergeChoice, setMergeChoice] = useState('')
   const view = useQuery({
     queryKey: [ID, 'view', item.repo, item.number, item.kind],
     queryFn: () => viewItem(item),
@@ -680,9 +681,14 @@ function TaskDetail({ item, onClose }) {
       item.kind === 'pr' && item.state === 'OPEN' ? jsxs('div', { className: 'rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', children: [
         jsx('div', { className: 'text-[11px] font-semibold text-(--ui-text-tertiary)', children: 'Merge' }),
         jsxs('div', { className: 'mt-1 flex flex-wrap gap-1.5', children: [
-          jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy, onClick: act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --merge`) }), children: 'Create merge commit' }),
-          jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy, onClick: act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --squash`) }), children: 'Squash and merge' }),
-          jsx(Button, { size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy, onClick: act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --rebase`) }), children: 'Rebase and merge' }),
+          jsx(Select, { value: mergeChoice, onValueChange: v => { setMergeChoice(v); void act(async () => { await sh(`gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --${v}`); setMergeChoice('') })() }, children: [
+            jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Merge...' }) }),
+            jsxs(SelectContent, { children: [
+              jsx(SelectItem, { value: 'merge', children: 'Create merge commit' }),
+              jsx(SelectItem, { value: 'squash', children: 'Squash and merge' }),
+              jsx(SelectItem, { value: 'rebase', children: 'Rebase and merge' }),
+            ] }),
+          ] }),
         ] }),
       ] }) : null,
       jsx('div', { className: 'whitespace-pre-wrap break-words text-(--ui-text-secondary)', children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
