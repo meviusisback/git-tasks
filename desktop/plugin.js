@@ -468,10 +468,7 @@ function StartWorktreeButton({ item }) {
       size: 'sm', className: 'h-7 px-2 text-[11px]', disabled: busy,
       onClick: async e => {
         e.stopPropagation(); setBusy(true)
-        setErr('debug: clicked')
         try {
-          console.log('[git-tasks] start worktree begin', item?.repo, item?.number)
-          host.notify?.({ kind: 'info', message: 'Start worktree clicked' })
           const clones = await discoverLocalClones()
           const root = pickLocalClone(clones, item.repo)
           if (!root) throw new Error(`No local clone of ${item.repo} under: ${$cloneRoots.get().join(', ')}. Clone it or add its folder in Settings.`)
@@ -565,6 +562,21 @@ function TasksToolbar() {
   ] })
 }
 
+function TaskRow({ item }) {
+  return jsxs('div', { className: 'grid items-center gap-2 px-2 py-1 text-xs border-b border-(--ui-stroke-secondary) hover:bg-(--ui-bg-quinary)', style: { gridTemplateColumns: 'minmax(150px, 1.3fr) 48px minmax(180px, 2.2fr) 74px 92px 54px minmax(170px, 1fr)' }, children: [
+    jsx('span', { className: 'truncate font-medium text-(--ui-text-secondary)', children: item.repo }),
+    jsx('span', { className: 'text-(--ui-text-tertiary)', children: `#${item.number}` }),
+    jsx('div', { className: 'truncate', children: [
+      jsx('span', { children: item.title }),
+      item.kind === 'pr' ? jsx(Codicon, { className: 'ml-1 inline text-(--ui-text-quaternary)', name: 'git-pull-request' }) : null,
+    ] }),
+    jsx('span', { className: cn('truncate', stateColor(item.state, item.isDraft)), style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
+    jsx('span', { className: 'truncate text-(--ui-text-quaternary)', children: item.author || '—' }),
+    jsx('span', { className: 'text-(--ui-text-quaternary)', children: formatTaskAge(item.updatedAt) }),
+    jsx(StartWorktreeButton, { item }),
+  ] })
+}
+
 function TasksList() {
   const repos = useValue($selectedRepos)
   const filter = useValue($filter)
@@ -589,9 +601,23 @@ function TasksList() {
     ] })
   }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
-  return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
-    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item }, itemRef(item)))])
-    : rows.map(item => jsx(TaskCard, { item }, itemRef(item))) }) })
+  return jsx(ScrollArea, { className: 'h-full', children: jsxs('div', { className: 'min-w-0', children: [
+    grouped ? grouped.map(g => jsxs('div', { key: g.repo, className: 'mt-2', children: [
+      jsx('div', { className: 'sticky top-0 bg-(--ui-bg-secondary) px-2 py-1 text-[11px] font-semibold text-(--ui-text-tertiary)', children: g.repo }),
+      g.items.map(item => jsx(TaskRow, { item }, itemRef(item))),
+    ] })) : jsxs('div', { children: [
+      jsxs('div', { className: 'grid items-center gap-2 px-2 py-1 text-[10px] font-semibold text-(--ui-text-tertiary)', style: { gridTemplateColumns: 'minmax(150px, 1.3fr) 48px minmax(180px, 2.2fr) 74px 92px 54px minmax(170px, 1fr)' }, children: [
+        jsx('span', { children: 'Repository' }),
+        jsx('span', { children: '#' }),
+        jsx('span', { children: 'Title' }),
+        jsx('span', { children: 'State' }),
+        jsx('span', { children: 'Author' }),
+        jsx('span', { children: 'Age' }),
+        jsx('span', { children: 'Actions' }),
+      ] }),
+      rows.map(item => jsx(TaskRow, { item }, itemRef(item))),
+    ] }),
+  ] }) })
 }
 
 function TasksPane() {
