@@ -335,8 +335,7 @@ export async function fetchRepoItems(repos, opts = {}) {
   const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
   const all = []
   for (const r of parseRepoList(normalized)) {
-    // per-repo to keep each shell command under the 4 KiB gate and isolate failures
-    const out = await shBig(buildListScript([r], opts))
+    const out = await sh(buildListScript([r], { ...opts, limit: opts.limit || 15 }))
     all.push(...parseListOutput(out))
   }
   return all
