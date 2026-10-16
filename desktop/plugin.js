@@ -117,7 +117,7 @@ export function buildListScript(repos, opts = {}) {
   const limit = Number.isSafeInteger(opts.limit) && opts.limit > 0 ? opts.limit : 30
   const PR_FIELDS = 'number,title,state,isDraft,author,createdAt,updatedAt,labels,url'
   const ISSUE_FIELDS = 'number,title,state,author,createdAt,updatedAt,labels,url'
-  const parts = ['set -o pipefail;']
+  const parts = ['set -o pipefail']
   for (const r of parseRepoList(Array.isArray(repos) ? repos.join('\n') : repos)) {
     parts.push(`printf "@@R ${r} pr\\n"`)
     parts.push(`gh pr list --repo ${sq(r)} --state ${state} --limit ${limit} --json ${PR_FIELDS} 2>/dev/null || printf '[]\\n'`)
