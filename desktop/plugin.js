@@ -605,7 +605,7 @@ function TasksPage() {
 function RepoSettings() {
   const repos = useValue($selectedRepos)
   const [q, setQ] = useState('')
-  const list = useQuery({ queryKey: [ID, 'gh-repos'], queryFn: () => listUserRepos(200), staleTime: 600_000 })
+  const list = useQuery({ queryKey: [ID, 'gh-repos'], queryFn: () => listUserRepos(50), staleTime: 600_000 })
   const available = useMemo(
     () => (list.data || []).filter(r => r.repo.toLowerCase().includes(q.toLowerCase())),
     [list.data, q]
@@ -673,7 +673,7 @@ function RepoPicker() {
     setLoading(true)
     setRepos(null)
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Loading repositories timed out after 5 seconds')), 5000))
-    void Promise.race([listUserRepos(200), timeout])
+    void Promise.race([listUserRepos(50), timeout])
       .then(result => { if (!cancelled) { setRepos(Array.isArray(result) ? result : []); setLoading(false) } })
       .catch(e => { if (!cancelled) { setError(String(e?.message || e)); setLoading(false) } })
     return () => { cancelled = true }
