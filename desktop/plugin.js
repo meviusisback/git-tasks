@@ -113,7 +113,7 @@ export function buildCloneScanCommand(roots, home) {
 }
 
 export function buildListScript(repos, opts = {}) {
-  const state = opts.state === 'all' ? 'all' : 'open'
+  const state = opts.state === 'all' || opts.state === 'closed' || opts.state === 'merged' ? opts.state : 'open'
   const limit = Number.isSafeInteger(opts.limit) && opts.limit > 0 ? opts.limit : 30
   const PR_FIELDS = 'number,title,state,isDraft,author,createdAt,updatedAt,labels,url'
   const ISSUE_FIELDS = 'number,title,state,author,createdAt,updatedAt,labels,url'
