@@ -332,11 +332,8 @@ export async function fetchRepoItems(repos, opts = {}) {
   return parseListOutput(await shBig(buildListScript(repos, opts)))
 }
 
-export async function listUserRepos(limit = 200) {
-  const out = await shBig(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner,isPrivate,updatedAt`)
-  if (!out) return []
-  let rows
-  try { rows = JSON.parse(out) } catch { throw new Error('gh JSON parse failed: ' + out.slice(0, 300)) }
+export async function listUserRepos(limit = 50) {
+  const rows = await ghJson(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner,isPrivate`)
   return (Array.isArray(rows) ? rows : []).map(r => ({ repo: r.nameWithOwner, private: !!r.isPrivate, updatedAt: r.updatedAt || '' }))
 }
 
