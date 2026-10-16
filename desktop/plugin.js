@@ -312,7 +312,7 @@ async function shBig(cmd) {
   const raw = `/tmp/${tag}.raw`
   const hex = `/tmp/${tag}.hex`
   try {
-    await sh(`${cmd} > ${sq(raw)} && python3 -c 'import sys; print(open(sys.argv[1], "rb").read().hex())' ${sq(raw)} > ${sq(hex)}`)
+    await sh(`${cmd} > ${sq(raw)} && od -An -v -tx1 ${sq(raw)} > ${sq(hex)}`)
     const byteLength = Number(await sh(`wc -c < ${sq(hex)}`))
     const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${sq(hex)} | head -c 3800`))
     const hexStr = out.replace(/\s+/g, '')
