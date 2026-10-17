@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath, checkSummary, reviewLabel, formatApproveCmd,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -127,6 +127,7 @@ test('parseListOutput flattens marked blocks into unified items', () => {
     author: 'meviusisback', createdAt: '2026-10-12T20:04:44Z',
     updatedAt: '2026-10-12T20:08:27Z', labels: [],
     url: 'https://github.com/meviusisback/omarchy-ai-subs/pull/9',
+    reviewDecision: '', statusCheckRollup: [], headRefName: '', baseRefName: '', isCrossRepository: false,
   })
   assert.equal(items[1].repo, 'meviusisback/omarchy-hw-monitor')
 })
@@ -359,4 +360,33 @@ test('profileName reads name or display_name', () => {
 test('cloneTargetPath joins expanded root with repo name', () => {
   assert.equal(cloneTargetPath('~/repo', 'o/agent-x', '/home/alberto'), '/home/alberto/repo/agent-x')
   assert.equal(cloneTargetPath('/abs/work', 'o/agent-x', '/home/alberto'), '/abs/work/agent-x')
+})
+
+test('checkSummary reads CI rollup', () => {
+  assert.deepEqual(checkSummary({ statusCheckRollup: [] }), { tone: 'none', label: '' })
+  assert.deepEqual(checkSummary({ statusCheckRollup: [{ conclusion: 'SUCCESS' }] }), { tone: 'ok', label: 'checks passing' })
+  const bad = checkSummary({ statusCheckRollup: [{ conclusion: 'SUCCESS' }, { conclusion: 'FAILURE' }] })
+  assert.equal(bad.tone, 'fail')
+  assert.equal(checkSummary({ statusCheckRollup: [{ status: 'IN_PROGRESS' }] }).tone, 'pending')
+  assert.deepEqual(checkSummary({}), { tone: 'none', label: '' })
+})
+
+test('reviewLabel maps decisions', () => {
+  assert.equal(reviewLabel('APPROVED'), 'approved')
+  assert.equal(reviewLabel('CHANGES_REQUESTED'), 'changes requested')
+  assert.equal(reviewLabel(''), '')
+})
+
+test('formatApproveCmd targets PRs only', () => {
+  assert.equal(formatApproveCmd({ kind: 'pr', repo: 'a/b', number: 4 }), "gh pr review 4 --repo 'a/b' --approve")
+  assert.throws(() => formatApproveCmd({ kind: 'issue', repo: 'a/b', number: 1 }))
+  assert.throws(() => formatApproveCmd({ kind: 'pr', repo: 'bad', number: 1 }))
+})
+
+test('parseListOutput keeps rich PR fields when present', () => {
+  const items = parseListOutput('@@R a/b pr\n[{"number":1,"title":"t","state":"OPEN","reviewDecision":"APPROVED","statusCheckRollup":[{"conclusion":"SUCCESS"}],"headRefName":"feat","baseRefName":"main","isCrossRepository":false}]')
+  assert.equal(items.length, 1)
+  assert.equal(items[0].reviewDecision, 'APPROVED')
+  assert.equal(items[0].headRefName, 'feat')
+  assert.deepEqual(items[0].statusCheckRollup, [{ conclusion: 'SUCCESS' }])
 })

@@ -127,7 +127,7 @@ export function buildCloneScanCommand(roots, home) {
 export function buildListScript(repos, opts = {}) {
   const state = opts.state === 'all' || opts.state === 'closed' || opts.state === 'merged' ? opts.state : 'open'
   const limit = Number.isSafeInteger(opts.limit) && opts.limit > 0 ? opts.limit : 30
-  const PR_FIELDS = 'number,title,state,isDraft,author,createdAt,updatedAt,labels,url'
+  const PR_FIELDS = 'number,title,state,isDraft,author,createdAt,updatedAt,labels,url,reviewDecision,statusCheckRollup,headRefName,baseRefName,isCrossRepository'
   const ISSUE_FIELDS = 'number,title,state,author,createdAt,updatedAt,labels,url'
   const parts = ['set -o pipefail']
   for (const r of parseRepoList(Array.isArray(repos) ? repos.join('\n') : repos)) {
@@ -165,6 +165,11 @@ export function parseListOutput(stdout) {
         updatedAt: row.updatedAt || '',
         labels: Array.isArray(row.labels) ? row.labels : [],
         url: row.url || '',
+        reviewDecision: row.reviewDecision || '',
+        statusCheckRollup: Array.isArray(row.statusCheckRollup) ? row.statusCheckRollup : [],
+        headRefName: row.headRefName || '',
+        baseRefName: row.baseRefName || '',
+        isCrossRepository: !!row.isCrossRepository,
       })
     }
     repo = null; kind = null
@@ -239,6 +244,32 @@ export function externalUrlOk(url) {
   return typeof url === 'string' && /^https:\/\/github\.com\//i.test(url.trim())
 }
 
+// Sintesi dei check CI per le card: tono + etichetta breve.
+export function checkSummary(item) {
+  const checks = Array.isArray(item?.statusCheckRollup) ? item.statusCheckRollup : []
+  if (!checks.length) return { tone: 'none', label: '' }
+  const vals = checks.map(c => String(c?.conclusion || c?.status || '').toUpperCase())
+  if (vals.some(v => v === 'FAILURE' || v === 'ERROR' || v === 'TIMED_OUT' || v === 'ACTION_REQUIRED')) {
+    const n = vals.filter(v => v === 'FAILURE' || v === 'ERROR').length
+    return { tone: 'fail', label: n > 1 ? `${n} failing` : 'failing' }
+  }
+  if (vals.some(v => v === 'IN_PROGRESS' || v === 'QUEUED' || v === 'PENDING' || v === 'WAITING' || v === 'REQUESTED')) {
+    return { tone: 'pending', label: 'checks running' }
+  }
+  if (vals.every(v => v === 'SUCCESS' || v === 'NEUTRAL' || v === 'SKIPPED' || v === 'CANCELLED')) {
+    return { tone: 'ok', label: 'checks passing' }
+  }
+  return { tone: 'none', label: '' }
+}
+
+export function reviewLabel(decision) {
+  const d = String(decision || '').toUpperCase()
+  if (d === 'APPROVED') return 'approved'
+  if (d === 'CHANGES_REQUESTED') return 'changes requested'
+  if (d === 'REVIEW_REQUIRED') return 'review required'
+  return ''
+}
+
 export function stateColor(state, isDraft) {
   if (isDraft) return 'var(--ui-text-tertiary)'
   if (state === 'OPEN') return 'var(--ui-accent)'
@@ -293,6 +324,12 @@ export function formatStateCmd(item, action) {
   if (!repoOk(item.repo)) throw new Error('invalid repo')
   const entity = item.kind === 'pr' ? 'pr' : 'issue'
   return `gh ${entity} ${verb} ${Number(item.number)} --repo ${sq(item.repo)}`
+}
+
+export function formatApproveCmd(item) {
+  if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (item.kind !== 'pr') throw new Error('only pull requests can be approved')
+  return `gh pr review ${Number(item.number)} --repo ${sq(item.repo)} --approve`
 }
 
 export function buildCommentCmd(item) {
@@ -601,6 +638,7 @@ function StartWorktreeButton({ item }) {
   const [profiles, setProfiles] = useState(null)
   const [profile, setProfile] = useState('')
   const [targetRoot, setTargetRoot] = useState('')
+  const [baseRef, setBaseRef] = useState('')
   const roots = useValue($cloneRoots)
   useEffect(() => {
     let cancelled = false
@@ -668,7 +706,7 @@ function StartWorktreeButton({ item }) {
       const clones = await discoverLocalClones()
       const root = pickLocalClone(clones, item.repo)
       if (!root) throw new Error('Clone not found. Use the clone option below.')
-      await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)), profile || null)
+      await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item), baseRef), profile || null)
       host.notify?.({ kind: 'success', message: 'Worktree session opened.' })
       setSetup(false)
     } catch (error) {
@@ -684,7 +722,7 @@ function StartWorktreeButton({ item }) {
       const home = await shHome()
       const dest = cloneTargetPath(targetRoot || (roots && roots[0]) || '~/repo', item.repo, home)
       await sh(`gh repo clone ${sq(item.repo)} ${sq(dest)}`)
-      const path = await createWorktree(dest, deriveBranchName(item))
+      const path = await createWorktree(dest, deriveBranchName(item), baseRef)
       await startWorktreeSession(item, path, profile || null)
       setCloneRoot(dest)
       setExistingPath(path)
@@ -712,6 +750,15 @@ function StartWorktreeButton({ item }) {
     setup && !existingPath ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
       jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
       profileSelect,
+      jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Start from' }),
+      jsxs(Select, { value: baseRef, onValueChange: setBaseRef, children: [
+        jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Branch' }) }),
+        jsxs(SelectContent, { children: [
+          jsx(SelectItem, { value: '', children: 'Default branch' }),
+          jsx(SelectItem, { value: 'origin/main', children: 'origin/main' }),
+          (item.kind === 'pr' && item.headRefName && !item.isCrossRepository) ? jsx(SelectItem, { value: item.headRefName, children: `PR branch (${item.headRefName})` }) : null,
+        ] }),
+      ] }),
       cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
         jsx(PBtn, { kind: 'primary', disabled: busy, onClick: confirmNew, children: 'Create worktree' }),
@@ -744,6 +791,10 @@ function TaskCard({ item }) {
           jsx('span', { className: 'font-medium break-words', style: ST_TEXT, children: item.repo }),
           jsx('span', { children: `#${item.number}` }),
           jsx('span', { className: 'ml-1 shrink-0 font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
+          (() => { const cs = checkSummary(item); if (cs.tone === 'none') return null
+            const fill = cs.tone === 'ok' ? '#a6e3a1' : cs.tone === 'fail' ? '#f38ba8' : '#f9e2af'
+            return jsx('span', { style: { width: 7, height: 7, borderRadius: 9999, backgroundColor: fill, display: 'inline-block' }, title: cs.label }) })(),
+          (() => { const rl = reviewLabel(item.reviewDecision); return rl ? jsx('span', { className: 'shrink-0', style: ST_MUTED, children: rl }) : null })(),
         ] }),
         jsx('div', { className: 'mt-1 text-sm font-semibold break-words', style: ST_TEXT, children: item.title }),
         jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
@@ -908,6 +959,9 @@ function TaskDetail({ item, onClose }) {
           jsx(PBtn, { kind: 'secondary', disabled: busy,
             onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
+          item.kind === 'pr' && item.state === 'OPEN' ? jsx(PBtn, { kind: 'secondary', disabled: busy,
+            onClick: act(async () => { await sh(formatApproveCmd(item)); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
+            children: 'Approve' }) : null,
           (() => { try { return jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }) } catch { return null } })(),
           jsx(PBtn, { kind: 'icon', onClick: () => { if (externalUrlOk(item.url)) { void window.hermesDesktop?.openExternal?.(item.url) } else { host.notify?.({ kind: 'error', message: 'Refusing to open a non-GitHub URL.' }) } }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
         ] }),
