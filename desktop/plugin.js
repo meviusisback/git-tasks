@@ -26,8 +26,8 @@ export const BUILD_TAG = 'parchment-20261017-v3'
 if (typeof console !== 'undefined') console.log('[git-tasks] build ' + BUILD_TAG)
 
 export const MONO_STYLE = { fontFamily: '\u0027JetBrainsMono Nerd Font\u0027, ui-monospace, SFMono-Regular, Menlo, monospace' }
-export const ST_PAGE = { backgroundColor: 'var(--ui-bg-secondary)' }
-export const ST_CARD = { backgroundColor: 'var(--ui-bg-quaternary)', borderColor: 'var(--ui-stroke-secondary)' }
+export const ST_PAGE = { backgroundColor: 'var(--ui-bg-editor)' }
+export const ST_CARD = { backgroundColor: 'var(--ui-bg-elevated)', borderColor: 'var(--ui-stroke-secondary)' }
 export const ST_DEEP = { backgroundColor: 'var(--ui-bg-tertiary)', borderColor: 'var(--ui-stroke-secondary)' }
 export const ST_TEXT = { color: 'var(--ui-text-primary)' }
 export const ST_MUTED = { color: 'var(--ui-text-tertiary)' }
@@ -783,7 +783,7 @@ function LabelChip({ label }) {
 }
 
 function TaskCard({ item }) {
-  return jsxs('div', { className: 'group rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD }, onClick: () => openTaskDetail(item), children: [
+  return jsxs('div', { className: 'group rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-elevated) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD }, onClick: () => openTaskDetail(item), children: [
     jsxs('div', { className: 'flex flex-wrap items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
         jsxs('div', { className: 'flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
@@ -1091,7 +1091,7 @@ function TasksStatusChip() {
 }
 
 function TasksView() {
-  return jsxs('div', { className: 'flex h-full min-h-0 flex-col bg-(--ui-bg-secondary)', style: { ...MONO_STYLE, ...ST_PAGE }, children: [
+  return jsxs('div', { className: 'flex h-full min-h-0 flex-col bg-(--ui-bg-editor)', style: { ...MONO_STYLE, ...ST_PAGE }, children: [
     jsx(RepoPicker, {}),
     jsx(TasksToolbar, {}),
     jsx('div', { className: 'min-h-0 flex-1', children: jsx(TasksList, {}) }),
