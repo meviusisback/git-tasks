@@ -277,8 +277,13 @@ export function formatViewCmd(item) {
   return `gh ${entity} view ${Number(item.number)} --repo ${sq(item.repo)} --json number,title,body,state,author,createdAt,url,comments`
 }
 
+export function numOk(n) {
+  return Number.isSafeInteger(n)
+}
+
 export function formatCheckoutCmd(item) {
   if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (!numOk(item.number)) throw new Error('invalid number')
   if (item.kind === 'pr') return `gh pr checkout ${Number(item.number)} --repo ${sq(item.repo)}`
   const name = item.repo.split('/')[1]
   return `gh repo clone ${sq(item.repo)} && cd ${sq(name)} && git switch -c ${sq(deriveBranchName(item))}`
@@ -293,6 +298,7 @@ export function mergeMethodOk(m) {
 export function formatMergeCmd(item, method) {
   if (!mergeMethodOk(method)) throw new Error(`unsupported merge method: ${method}`)
   if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (!numOk(item.number)) throw new Error('invalid number')
   if (item.kind !== 'pr') throw new Error('only pull requests can be merged')
   return `gh pr merge ${Number(item.number)} --repo ${sq(item.repo)} --${method}`
 }
@@ -302,6 +308,7 @@ const STATE_ACTION = { close: 'close', reopen: 'reopen' }
 export function formatStateCmd(item, action) {
   const verb = STATE_ACTION[action]
   if (!verb) throw new Error(`unsupported state action: ${action}`)
+  if (!numOk(item.number)) throw new Error('invalid number')
   if (!repoOk(item.repo)) throw new Error('invalid repo')
   const entity = item.kind === 'pr' ? 'pr' : 'issue'
   return `gh ${entity} ${verb} ${Number(item.number)} --repo ${sq(item.repo)}`
@@ -366,21 +373,28 @@ async function shHome() {
   try { return (await sh('printf %s "$HOME"')).trim() } catch { return '' }
 }
 
+const SCRATCH_DIR_SH = '"$HOME/.hermes/cache/scratch"' // solo in doppie virgolette: la shell espande $HOME
+
+// Percorso temp portabile: dir in doppi apici (espansa), nome file in singoli (sicuro).
+export function scratchPath(name) {
+  return `${SCRATCH_DIR_SH}/${sq(name)}`
+}
+
 async function shBig(cmd) {
   const tag = `gittasks.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-  const dir = '/home/alberto/.hermes/cache/scratch'
-  const raw = `${dir}/${tag}.raw`
-  const hex = `${dir}/${tag}.hex`
+  const dir = SCRATCH_DIR_SH
+  const raw = scratchPath(`${tag}.raw`)
+  const hex = scratchPath(`${tag}.hex`)
   try {
-    await sh(`mkdir -p ${sq(dir)} && ${cmd} > ${sq(raw)} && od -An -v -tx1 ${sq(raw)} > ${sq(hex)}`)
-    const byteLength = Number(await sh(`wc -c < ${sq(hex)}`))
-    const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${sq(hex)} | head -c 3800`))
+    await sh(`mkdir -p ${dir} && ${cmd} > ${raw} && od -An -v -tx1 ${raw} > ${hex}`)
+    const byteLength = Number(await sh(`wc -c < ${hex}`))
+    const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${hex} | head -c 3800`))
     const hexStr = out.replace(/\s+/g, '')
     const bytes = []
     for (let i = 0; i + 1 < hexStr.length; i += 2) bytes.push(parseInt(hexStr.slice(i, i + 2), 16))
     return new TextDecoder('utf-8').decode(Uint8Array.from(bytes))
   } finally {
-    await sh(`unlink ${sq(raw)} 2>/dev/null; unlink ${sq(hex)} 2>/dev/null`).catch(() => {})
+    await sh(`unlink ${raw} 2>/dev/null; unlink ${hex} 2>/dev/null`).catch(() => {})
   }
 }
 
@@ -407,22 +421,22 @@ export async function listUserRepos(limit = 50) {
 
 export async function postComment(item, text) {
   const tag = `gittasks.cmt.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-  const dir = '/home/alberto/.hermes/cache/scratch'
-  const file = `${dir}/${tag}`
-  const b64 = `${dir}/${tag}.b64`
+  const dir = SCRATCH_DIR_SH
+  const file = scratchPath(tag)
+  const b64 = scratchPath(`${tag}.b64`)
   try {
     const bytes = new TextEncoder().encode(String(text))
     let bin = ''
     for (const b of bytes) bin += String.fromCharCode(b)
     const encoded = btoa(bin)
-    await sh(`mkdir -p ${sq(dir)} && : > ${sq(b64)}`)
+    await sh(`mkdir -p ${dir} && : > ${b64}`)
     for (let i = 0; i < encoded.length; i += 1800) {
-      await sh(`printf %s ${sq(encoded.slice(i, i + 1800))} >> ${sq(b64)}`)
+      await sh(`printf %s ${sq(encoded.slice(i, i + 1800))} >> ${b64}`)
     }
-    await sh(`{ base64 -d < ${sq(b64)} || base64 -D < ${sq(b64)}; } > ${sq(file)}`)
-    return ghJson(`${buildCommentCmd(item)} ${sq(file)} --json url`)
+    await sh(`{ base64 -d < ${b64} || base64 -D < ${b64}; } > ${file}`)
+    return ghJson(`${buildCommentCmd(item)} ${file} --json url`)
   } finally {
-    await sh(`unlink ${sq(file)} 2>/dev/null; unlink ${sq(b64)} 2>/dev/null`).catch(() => {})
+    await sh(`unlink ${file} 2>/dev/null; unlink ${b64} 2>/dev/null`).catch(() => {})
   }
 }
 
@@ -525,14 +539,18 @@ export function loadPersisted(ctx) {
 }
 
 export function persistRepos(ctx, repos) {
-  const clean = parseRepoList((repos || []).join('\n')).slice(0, MAX_SELECTED_REPOS)
+  const parsed = parseRepoList((repos || []).join('\n'))
+  if (parsed.length > MAX_SELECTED_REPOS) host.notify?.({ kind: 'info', message: `Keeping the first ${MAX_SELECTED_REPOS} repositories.` })
+  const clean = parsed.slice(0, MAX_SELECTED_REPOS)
   $selectedRepos.set(clean)
   ctx.storage.set(STORAGE_KEY_REPOS, clean)
   return clean
 }
 
 export function persistCloneRoots(ctx, text) {
-  const clean = parseCloneRoots(text).slice(0, MAX_CLONE_ROOTS)
+  const parsed = parseCloneRoots(text)
+  if (parsed.length > MAX_CLONE_ROOTS) host.notify?.({ kind: 'info', message: `Keeping the first ${MAX_CLONE_ROOTS} clone folders.` })
+  const clean = parsed.slice(0, MAX_CLONE_ROOTS)
   $cloneRoots.set(clean)
   ctx.storage.set(STORAGE_KEY_CLONE_ROOTS, clean)
   return clean
@@ -609,7 +627,9 @@ function StartWorktreeButton({ item }) {
         } catch (e) {
           delete map[itemRef(item)]
           try { pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map) } catch {}
-          throw new Error(`Saved worktree session is gone (${e?.message || e}). Starting a fresh one instead…`)
+          host.notify?.({ kind: 'info', message: 'Saved session is gone — starting a fresh one.' })
+          await startWorktreeSession(item, existingPath)
+          return
         }
       } else {
         await startWorktreeSession(item, existingPath)
@@ -766,7 +786,7 @@ function TasksList() {
 
 function TasksPane() {
   const selected = useValue($selectedTask)
-  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) })
+  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) }, itemRef(selected))
   return jsx(TasksView, {})
 }
 
@@ -813,7 +833,7 @@ function TaskDetail({ item, onClose }) {
           jsx(PBtn, { kind: 'secondary', disabled: busy,
             onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
-          jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }),
+          (() => { try { return jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }) } catch { return null } })(),
           jsx(PBtn, { kind: 'icon', onClick: () => { if (externalUrlOk(item.url)) { void window.hermesDesktop?.openExternal?.(item.url) } else { host.notify?.({ kind: 'error', message: 'Refusing to open a non-GitHub URL.' }) } }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
         ] }),
       ] }),
@@ -842,7 +862,7 @@ function TaskDetail({ item, onClose }) {
           jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Reviewers' }),
           jsx('dd', { className: 'flex flex-wrap gap-1', children: reviewers.length ? reviewers.filter(Boolean).map((r, i) => jsx('span', { key: i, className: 'rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px] text-[#5e5d59]', style: { ...ST_DEEP, ...ST_MUTED }, children: String(typeof r === 'string' ? r : (r?.login || r?.name || 'unknown')) })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'No reviewers' }) }),
           jsx('dt', { className: 'text-[10px] font-semibold uppercase tracking-wide text-[#5e5d59]', style: ST_MUTED, children: 'Checks' }),
-          jsx('dd', { className: 'flex flex-wrap gap-1', children: checks.length ? checks.map((c, i) => jsx('span', { key: i, className: cn('rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-[#5e5d59]'), children: String(c.conclusion || c.status || 'pending') + ' ' + String(c.name || c.context || 'check') })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'No checks reported yet' }) }),
+          jsx('dd', { className: 'flex flex-wrap gap-1', children: checks.length ? checks.filter(Boolean).map((c, i) => jsx('span', { key: i, className: cn('rounded-full bg-[#f0eee6] px-2 py-0.5 text-[10px]', c.conclusion === 'SUCCESS' ? 'text-green-400' : c.conclusion === 'FAILURE' ? 'text-red-400' : 'text-[#5e5d59]'), children: String(c?.conclusion || c?.status || 'pending') + ' ' + String(c?.name || c?.context || 'check') })) : jsx('span', { className: 'text-[#5e5d59]', style: ST_MUTED, children: 'No checks reported yet' }) }),
         ] }),
       ] }),
       item.kind === 'pr' && item.state === 'OPEN' ? jsxs('section', { className: 'rounded-2xl border border-[#e8e6dc] bg-[#faf9f5] p-3', style: ST_CARD, children: [
@@ -887,7 +907,7 @@ function TaskDetail({ item, onClose }) {
 }
 function TasksPage() {
   const selected = useValue($selectedTask)
-  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) })
+  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) }, itemRef(selected))
   return jsx(TasksView, {})
 }
 

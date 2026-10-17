@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -328,4 +328,23 @@ test('sanitizeFilter keeps only known enum values', () => {
   assert.equal(bad.kind, 'all')
   assert.equal(bad.sort, 'updated')
   assert.equal(bad.group, false)
+})
+
+test('numOk accepts only safe integers', () => {
+  assert.equal(numOk(4), true)
+  assert.equal(numOk(0), true)
+  assert.equal(numOk(NaN), false)
+  assert.equal(numOk(1.5), false)
+  assert.equal(numOk(undefined), false)
+})
+
+test('builders reject non-integer numbers', () => {
+  assert.throws(() => formatCheckoutCmd({ kind: 'pr', repo: 'a/b', number: NaN }))
+  assert.throws(() => formatMergeCmd({ kind: 'pr', repo: 'a/b', number: 1.5 }, 'merge'))
+  assert.throws(() => formatStateCmd({ kind: 'issue', repo: 'a/b', number: undefined }, 'close'))
+})
+
+test('scratchPath expands HOME in shell and quotes the filename', () => {
+  assert.equal(scratchPath('a.raw'), `"$HOME/.hermes/cache/scratch"/'a.raw'`)
+  assert.ok(!scratchPath('x').includes('/home/alberto'))
 })
