@@ -736,7 +736,6 @@ function TasksToolbar() {
         onClick: () => set({ group: !filter.group }), children: 'Group' }) }),
     ] }),
     repos.length > 1 ? jsx(RepoFilterRow, { repos, selected: filter.repos, onChange: v => set({ repos: v }) }) : null,
-    jsx('div', { className: 'px-1 text-[9px] text-[#87867f]', style: ST_FAINT, children: 'build ' + BUILD_TAG }),
   ] })
 }
 
