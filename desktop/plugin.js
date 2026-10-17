@@ -849,13 +849,18 @@ function RepoFilterRow({ repos, selected, onChange }) {
 function TasksToolbar() {
   const repos = useValue($selectedRepos)
   const filter = useValue($filter)
+  const itemsQuery = useQuery({ queryKey: [ID, 'items'], enabled: false })
   const set = patch => {
     const next = { ...$filter.get(), ...patch }
     $filter.set(next)
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
+  const refresh = () => queryClient.invalidateQueries({ queryKey: [ID, 'items'] })
   return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', style: { ...MONO_STYLE, ...ST_CARD }, children: [
-    jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'w-full' }),
+    jsxs('div', { className: 'flex items-center gap-1.5', children: [
+      jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'flex-1' }),
+      jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
+    ] }),
     jsx('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
       jsx('div', { style: { width: '100%', maxWidth: 300 }, children:
         jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
