@@ -7,6 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -209,8 +210,19 @@ test('itemRef renders repo#number', () => {
 })
 
 test('formatCheckoutCmd differs for pr and issue', () => {
-  assert.equal(formatCheckoutCmd({ kind: 'pr', repo: 'a/b', number: 4 }), 'gh pr checkout 4 --repo a/b')
-  assert.match(formatCheckoutCmd({ kind: 'issue', repo: 'a/b', number: 5, title: 'Fix it' }), /git switch -c issue\/5-fix-it/)
+  assert.equal(formatCheckoutCmd({ kind: 'pr', repo: 'a/b', number: 4 }), "gh pr checkout 4 --repo 'a/b'")
+  assert.match(formatCheckoutCmd({ kind: 'issue', repo: 'a/b', number: 5, title: 'Fix it' }), /git switch -c 'issue\/5-fix-it'/)
+})
+test('formatCheckoutCmd rejects invalid repos', () => {
+  assert.throws(() => formatCheckoutCmd({ kind: 'pr', repo: 'o/r; touch x', number: 1 }))
+  assert.throws(() => formatCheckoutCmd({ kind: 'issue', repo: 'bad', number: 1, title: 't' }))
+})
+test('formatMergeCmd allowlists merge methods and validates the repo', () => {
+  const cmd = formatMergeCmd({ kind: 'pr', repo: 'a/b', number: 4 }, 'squash')
+  assert.equal(cmd, "gh pr merge 4 --repo 'a/b' --squash")
+  assert.throws(() => formatMergeCmd({ kind: 'pr', repo: 'a/b', number: 4 }, 'merge; touch x'))
+  assert.throws(() => formatMergeCmd({ kind: 'issue', repo: 'a/b', number: 4 }, 'merge'))
+  assert.throws(() => formatMergeCmd({ kind: 'pr', repo: 'bad', number: 4 }, 'merge'))
 })
 test('formatViewCmd reads the right entity as JSON', () => {
   assert.equal(formatViewCmd({ kind: 'pr', repo: 'a/b', number: 4 }), "gh pr view 4 --repo 'a/b' --json number,title,body,state,author,createdAt,url,comments")
@@ -297,4 +309,23 @@ test('readChunksConcurrently joins chunks in order with concurrency', async () =
 test('parseCloneScanOutput trims trailing slashes on paths', () => {
   const out = parseCloneScanOutput('/a/b/\tgit@github.com:o/r.git\n')
    assert.equal(out[0].path, '/a/b')
+})
+
+test('externalUrlOk allows only github https URLs', () => {
+  assert.equal(externalUrlOk('https://github.com/a/b'), true)
+  assert.equal(externalUrlOk('javascript:alert(1)'), false)
+  assert.equal(externalUrlOk('file:///etc/passwd'), false)
+  assert.equal(externalUrlOk('https://evil.com/x'), false)
+  assert.equal(externalUrlOk(''), false)
+  assert.equal(externalUrlOk(null), false)
+})
+
+test('sanitizeFilter keeps only known enum values', () => {
+  assert.deepEqual(sanitizeFilter(null), { state: 'open', kind: 'all', sort: 'updated', group: false })
+  assert.deepEqual(sanitizeFilter({ state: 'closed', kind: 'pr', sort: 'repo', group: true }), { state: 'closed', kind: 'pr', sort: 'repo', group: true })
+  const bad = sanitizeFilter({ state: 'nuke', kind: 42, sort: 'x', group: 'yes' })
+  assert.equal(bad.state, 'open')
+  assert.equal(bad.kind, 'all')
+  assert.equal(bad.sort, 'updated')
+  assert.equal(bad.group, false)
 })
