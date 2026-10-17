@@ -2,6 +2,8 @@
 
 A Hermes Desktop plugin that shows GitHub **issues and pull requests from all your repositories** in one Orca-style Tasks view — and lets you jump into the work with a single click.
 
+![Tasks view](docs/tasks.png)
+
 ## What it does
 
 - **One list for every repo.** Pick which repositories to follow; filter by Open / All / Closed and by PRs / Issues. Lists refresh automatically.
