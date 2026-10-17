@@ -441,12 +441,10 @@ export async function ghJson(cmd) {
 
 export async function fetchRepoItems(repos, opts = {}) {
   const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
-  const all = []
-  for (const r of parseRepoList(normalized)) {
-    const out = await sh(buildListScript([r], { ...opts, limit: opts.limit || 15 }))
-    all.push(...parseListOutput(out))
-  }
-  return all
+  const list = parseRepoList(normalized)
+  // Ogni repo e indipendente: tutti in parallelo, ordine conservato.
+  const outs = await Promise.all(list.map(r => sh(buildListScript([r], { ...opts, limit: opts.limit || 15 }))))
+  return outs.flatMap(parseListOutput)
 }
 
 export async function listUserRepos(limit = 50) {
@@ -602,6 +600,7 @@ function useRepoItems() {
     queryKey: [ID, 'items', repos, filter.state],
     enabled: repos.length > 0,
     queryFn: () => fetchRepoItems(repos, { state: filter.state === 'all' ? 'all' : filter.state }),
+    placeholderData: prev => prev,
     staleTime: 30_000,
     refetchInterval: 90_000,
     refetchOnWindowFocus: true,
