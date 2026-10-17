@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -347,4 +347,16 @@ test('builders reject non-integer numbers', () => {
 test('scratchPath expands HOME in shell and quotes the filename', () => {
   assert.equal(scratchPath('a.raw'), `"$HOME/.hermes/cache/scratch"/'a.raw'`)
   assert.ok(!scratchPath('x').includes('/home/alberto'))
+})
+
+test('profileName reads name or display_name', () => {
+  assert.equal(profileName({ name: 'botty' }), 'botty')
+  assert.equal(profileName({ display_name: 'Coach' }), 'Coach')
+  assert.equal(profileName({}), '')
+  assert.equal(profileName(null), '')
+})
+
+test('cloneTargetPath joins expanded root with repo name', () => {
+  assert.equal(cloneTargetPath('~/repo', 'o/agent-x', '/home/alberto'), '/home/alberto/repo/agent-x')
+  assert.equal(cloneTargetPath('/abs/work', 'o/agent-x', '/home/alberto'), '/abs/work/agent-x')
 })

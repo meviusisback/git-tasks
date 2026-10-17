@@ -306,6 +306,23 @@ export function formatWorktreeRemoveCmd(repoRoot, branch) {
   return `git -C ${sq(repoRoot)} worktree remove ${sq(dir)}`
 }
 
+export function profileName(p) {
+  return p?.name || p?.display_name || ''
+}
+
+export async function listProfiles() {
+  const raw = await host.request('profiles.list', {})
+  const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
+  const rows = Array.isArray(res?.profiles) ? res.profiles : []
+  return rows.map(profileName).filter(Boolean)
+}
+
+// Dove clonare un repo mancante: radice scelta + nome repo, con ~ espansa.
+export function cloneTargetPath(root, repo, home) {
+  const name = String(repo || '').split('/')[1] || 'repo'
+  return `${expandRoot(root, home)}/${name}`
+}
+
 export function pickLocalClone(clones, repo) {
   const want = String(repo || '').toLowerCase()
   if (!want) return null
@@ -579,24 +596,47 @@ function StartWorktreeButton({ item }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [existingPath, setExistingPath] = useState(null)
+  const [cloneRoot, setCloneRoot] = useState(null)
+  const [setup, setSetup] = useState(false)
+  const [profiles, setProfiles] = useState(null)
+  const [profile, setProfile] = useState('')
+  const [targetRoot, setTargetRoot] = useState('')
+  const roots = useValue($cloneRoots)
   useEffect(() => {
     let cancelled = false
     async function check() {
       try {
         const clones = await discoverLocalClones()
         const root = pickLocalClone(clones, item.repo)
+        if (!cancelled) setCloneRoot(root)
         if (!root) { if (!cancelled) setExistingPath(null); return }
         const slug = deriveBranchName(item).replace(/\//g, '-')
         const path = `${root}/.worktrees/${slug}`
         const yes = await sh(`[ -d ${sq(path)} ] && echo yes || echo no`)
         if (!cancelled) setExistingPath(yes === 'yes' ? path : null)
       } catch {
-        if (!cancelled) setExistingPath(null)
+        if (!cancelled) { setExistingPath(null); setCloneRoot(null) }
       }
     }
     void check()
     return () => { cancelled = true }
   }, [item.repo, item.number, item.title])
+  const fail = (error, done) => {
+    const msg = String(error?.message || error)
+    setErr(msg)
+    host.notify?.({ kind: 'error', message: msg })
+    setBusy(false)
+    if (done) done()
+  }
+  const openSetup = async e => {
+    e.stopPropagation()
+    setErr('')
+    setSetup(true)
+    if (profiles === null) {
+      try { setProfiles(await listProfiles()) } catch { setProfiles([]) }
+    }
+    if (!targetRoot) setTargetRoot((roots && roots[0]) || '~/repo')
+  }
   const openExisting = async () => {
     setBusy(true); setErr('')
     try {
@@ -617,31 +657,76 @@ function StartWorktreeButton({ item }) {
         await startWorktreeSession(item, existingPath)
       }
     } catch (error) {
-      const msg = String(error?.message || error)
-      setErr(msg)
-      host.notify?.({ kind: 'error', message: msg })
-    } finally { setBusy(false) }
+      fail(error)
+      return
+    }
+    setBusy(false)
   }
-  const startNew = async () => {
+  const confirmNew = async () => {
     setBusy(true); setErr('')
     try {
       const clones = await discoverLocalClones()
       const root = pickLocalClone(clones, item.repo)
-      if (!root) throw new Error(`No local clone of ${item.repo} under: ${$cloneRoots.get().join(', ')}. Clone it or add its folder in Settings.`)
-      await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)))
+      if (!root) throw new Error('Clone not found. Use the clone option below.')
+      await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item)), profile || null)
       host.notify?.({ kind: 'success', message: 'Worktree session opened.' })
+      setSetup(false)
     } catch (error) {
-      const msg = String(error?.message || error)
-      setErr(msg)
-      host.notify?.({ kind: 'error', message: msg })
-    } finally { setBusy(false) }
+      fail(error)
+      return
+    }
+    setBusy(false)
   }
+  const cloneAndStart = async () => {
+    setBusy(true); setErr('')
+    try {
+      await sh(`gh repo view ${sq(item.repo)} --json nameWithOwner`)
+      const home = await shHome()
+      const dest = cloneTargetPath(targetRoot || (roots && roots[0]) || '~/repo', item.repo, home)
+      await sh(`gh repo clone ${sq(item.repo)} ${sq(dest)}`)
+      const path = await createWorktree(dest, deriveBranchName(item))
+      await startWorktreeSession(item, path, profile || null)
+      setCloneRoot(dest)
+      setExistingPath(path)
+      setSetup(false)
+      host.notify?.({ kind: 'success', message: `Cloned into ${dest}. Worktree session opened.` })
+    } catch (error) {
+      fail(error)
+      return
+    }
+    setBusy(false)
+  }
+  const profileSelect = jsx(Select, { value: profile, onValueChange: setProfile, children: [
+    jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Bot profile (default)' }) }),
+    jsxs(SelectContent, { children: [
+      jsx(SelectItem, { value: '', children: 'Default profile' }),
+      ...((profiles || []).map(p => jsx(SelectItem, { value: p, children: p }, p))),
+    ] }),
+  ] })
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx(PBtn, {
       kind: 'primary', className: '', disabled: busy,
-      onClick: async e => { e.stopPropagation(); if (existingPath) await openExisting(); else await startNew() },
+      onClick: async e => { e.stopPropagation(); if (existingPath && !setup) await openExisting(); else await openSetup(e) },
       children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
     }),
+    setup && !existingPath ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
+      jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
+      profileSelect,
+      cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
+        jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
+        jsx(PBtn, { kind: 'primary', disabled: busy, onClick: confirmNew, children: 'Create worktree' }),
+      ] }) : jsxs('div', { className: 'flex flex-col gap-1', children: [
+        jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `No local clone of ${item.repo}. Clone into:` }),
+        jsxs(Select, { value: targetRoot, onValueChange: setTargetRoot, children: [
+          jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Folder' }) }),
+          jsxs(SelectContent, { children: (roots || []).map(r => jsx(SelectItem, { value: r, children: r }, r)) }),
+        ] }),
+        jsx('span', { className: 'text-[10px] break-words', style: ST_FAINT, children: targetRoot ? `${targetRoot}/${item.repo.split('/')[1]}` : '' }),
+        jsx(PBtn, { kind: 'primary', disabled: busy || !targetRoot, onClick: cloneAndStart, children: 'Clone & start' }),
+        jsx('span', { className: 'text-[10px]', style: ST_FAINT, children: 'Add folders in Settings → Clone folders.' }),
+      ] }),
+      jsx(PBtn, { kind: 'secondary', onClick: () => setSetup(false), children: 'Close' }),
+    ] }) : null,
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
   ] })
 }
