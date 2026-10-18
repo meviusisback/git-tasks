@@ -987,7 +987,7 @@ function TaskDetail({ item, onClose }) {
             onClick: act(async () => { await sh(formatApproveCmd(item)); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: 'Approve' }) : null,
           (() => { try { return jsx(CopyButton, { appearance: 'icon', buttonSize: 'icon-sm', label: 'Copy checkout command', text: formatCheckoutCmd(item) }) } catch { return null } })(),
-          jsx(PBtn, { kind: 'icon', onClick: () => { if (externalUrlOk(item.url)) { void window.hermesDesktop?.openExternal?.(item.url) } else { host.notify?.({ kind: 'error', message: 'Refusing to open a non-GitHub URL.' }) } }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
+          jsx(PBtn, { kind: 'icon', onClick: () => { if (externalUrlOk(item.url)) { void pluginCtx?.os?.openExternal?.(item.url) } else { host.notify?.({ kind: 'error', message: 'Refusing to open a non-GitHub URL.' }) } }, 'aria-label': 'Open on GitHub', children: jsx(Codicon, { name: 'link-external' }) }),
         ] }),
       ] }),
       err ? jsx('div', { className: 'mt-2 text-[10px] text-red-400', children: err }) : null,
