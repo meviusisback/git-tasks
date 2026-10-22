@@ -1313,18 +1313,16 @@ function TasksToolbar() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: [ID, 'items'] })
   return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', style: { ...MONO_STYLE, ...ST_CARD }, children: [
     jsxs('div', { className: 'flex items-center gap-1.5', children: [
-      jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'flex-1' }),
-      jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
-    ] }),
-    jsxs('div', { className: 'flex items-stretch justify-center gap-1.5', children: [
-      jsx('div', { className: 'min-w-0 flex-1', style: { maxWidth: 300 }, children:
+      jsx('div', { className: 'min-w-0 shrink-0', style: { width: 220 }, children:
         jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
           options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
       }),
-      jsx('div', { className: 'min-w-0 flex-1', style: { maxWidth: 340 }, children:
-        jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full',
+      jsx('div', { className: 'min-w-0 shrink-0', style: { width: 280 }, children:
+        jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full bg-(--ui-bg-secondary)',
           options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
+      jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'min-w-0 flex-1' }),
+      jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
     ] }),
     jsxs('div', { className: 'flex flex-wrap items-center gap-1.5', children: [
       repos.length > 1 ? jsx('div', { className: 'min-w-0 flex-1', children:
