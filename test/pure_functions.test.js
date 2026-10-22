@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -460,4 +460,14 @@ test('skillMatchesQuery tolerates spaces and dashes', () => {
   assert.equal(skillMatchesQuery('security-audit', 'security-audit'), true)
   assert.equal(skillMatchesQuery('foo', ''), true)
   assert.equal(skillMatchesQuery('foo', 'zzz'), false)
+})
+
+test('branchOk and formatFreeSeedMessage', () => {
+  assert.equal(branchOk('feat/login-2'), true)
+  assert.equal(branchOk('-x'), false)
+  assert.equal(branchOk('a..b'), false)
+  assert.equal(branchOk('a b'), false)
+  assert.equal(branchOk(''), false)
+  const m = formatFreeSeedMessage('o/r', 'feat/x')
+  assert.ok(m.startsWith('Work on o/r branch feat/x'))
 })

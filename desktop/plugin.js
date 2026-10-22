@@ -407,6 +407,11 @@ export async function listSkills() {
   return parseSkillNames(await shBig(cmd))
 }
 
+export function branchOk(name) {
+  const b = String(name || '')
+  return /^(?!-)(?!.*\.\.)[A-Za-z0-9_.\/\-]+$/.test(b)
+}
+
 export function profileName(p) {
   return p?.name || p?.display_name || ''
 }
@@ -616,6 +621,28 @@ export async function createWorktree(repoRoot, branch, baseRef = '') {
   } catch { /* treat as new branch */ }
   await sh(`git -C ${sq(repoRoot)} fetch --prune origin && git -C ${sq(repoRoot)} worktree add ${sq(dir)} -b ${sq(b)}${baseRef ? ' ' + sq(baseRef) : ''}`)
   return `${repoRoot}/${dir}`
+}
+
+export function formatFreeSeedMessage(repo, branch) {
+  return [`Work on ${repo} branch ${branch}`, '', 'Verify the branch state with `git status` and `gh` before changing code.'].join('\n')
+}
+
+export async function startFreeSession(repo, branch, worktreePath, profile = null) {
+  const raw = await host.request('session.create', {
+    cwd: worktreePath,
+    cwd_explicit: true,
+    title: `${repo} ${branch}`.slice(0, 120),
+    ...(profile ? { profile } : {}),
+    messages: [{ role: 'user', content: formatFreeSeedMessage(repo, branch) }],
+  })
+  const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
+  const storedId = res?.stored_session_id || res?.session_id || res?.id
+  if (!storedId) {
+    throw new Error(`session.create did not return a session id: ${JSON.stringify(raw).slice(0, 300)}`)
+  }
+  await host.openSession(storedId, { intent: 'tab' })
+  host.notify?.({ kind: 'success', message: `Worktree session opened on ${repo} ${branch}.` })
+  return storedId
 }
 
 export async function startWorktreeSession(item, worktreePath, profile = null, skill = '') {
@@ -1087,6 +1114,92 @@ function RepoFilterRow({ repos, selected, onChange }) {
   ] })
 }
 
+function NewWorktreeButton() {
+  const [open, setOpen] = useState(false)
+  const [repo, setRepo] = useState('')
+  const [branch, setBranch] = useState('')
+  const [profile, setProfile] = useState('')
+  const [baseRef, setBaseRef] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [profiles, setProfiles] = useState(null)
+  const roots = useValue($cloneRoots)
+  const ghRepos = useQuery({ queryKey: [ID, 'gh-repos'], queryFn: () => listUserRepos(50), staleTime: 600_000, enabled: open })
+  useEffect(() => {
+    if (!open || profiles !== null) return
+    let cancelled = false
+    listProfiles().then(
+      v => { if (!cancelled) setProfiles(v) },
+      () => { if (!cancelled) setProfiles([]) },
+    )
+    return () => { cancelled = true }
+  }, [open])
+  const valid = repoOk(repo) && branchOk(branch)
+  const create = async () => {
+    setBusy(true); setErr('')
+    try {
+      if (!repoOk(repo)) throw new Error('Pick a repository.')
+      if (!branchOk(branch)) throw new Error('Invalid branch name (letters, numbers, . _ / -, no leading - or ..).')
+      const clones = await discoverLocalClones()
+      let root = pickLocalClone(clones, repo)
+      if (!root) {
+        const home = await shHome()
+        root = cloneTargetPath((roots && roots[0]) || '~/repo', repo, home)
+        await sh(`gh repo view ${sq(repo)} --json nameWithOwner`)
+        await sh(`gh repo clone ${sq(repo)} ${sq(root)}`)
+      }
+      const path = await createWorktree(root, branch, baseRef)
+      await startFreeSession(repo, branch, path, profile || null)
+      setOpen(false)
+      setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setErr('')
+    } catch (e) {
+      const msg = String(e?.message || e)
+      setErr(msg)
+      host.notify?.({ kind: 'error', message: msg })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const options = (ghRepos.data || []).map(r => r.repo).filter(Boolean)
+  return jsxs('div', { children: [
+    jsx(PBtn, { kind: 'secondary', onClick: () => { setErr(''); setOpen(true) }, children: 'New worktree' }),
+    open ? jsx(Dialog, { open: true, onOpenChange: o => { if (!o) setOpen(false) }, children:
+      jsx(DialogContent, { onClick: e => e.stopPropagation(), className: 'max-w-md', style: MONO_STYLE, children: [
+      jsx(DialogHeader, { children: jsx(DialogTitle, { children: 'Create new worktree' }) }),
+      jsxs('div', { className: 'flex flex-col gap-1.5', children: [
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Repository' }),
+        jsxs(Select, { value: repo, onValueChange: setRepo, children: [
+          jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: ghRepos.isLoading ? 'Loading repos…' : 'Pick a repository' }) }),
+          jsxs(SelectContent, { children: options.map(r => jsx(SelectItem, { value: r, children: r }, r)) }),
+        ] }),
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Branch name' }),
+        jsx(Input, { value: branch, onChange: e => setBranch(e.target.value), placeholder: 'e.g. feat/login-form', className: 'h-7 text-[11px]' }),
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
+        jsxs(Select, { value: profile, onValueChange: setProfile, children: [
+          jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Default profile' }) }),
+          jsxs(SelectContent, { children: [
+            jsx(SelectItem, { value: '', children: 'Default profile' }),
+            ...((profiles || []).map(p => jsx(SelectItem, { value: p, children: p }, p))),
+          ] }),
+        ] }),
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Start from' }),
+        jsxs(Select, { value: baseRef, onValueChange: setBaseRef, children: [
+          jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Branch' }) }),
+          jsxs(SelectContent, { children: [
+            jsx(SelectItem, { value: '', children: 'Default branch' }),
+            jsx(SelectItem, { value: 'origin/main', children: 'origin/main' }),
+          ] }),
+        ] }),
+        err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
+        jsxs('div', { className: 'flex justify-end gap-1.5', children: [
+          jsx(PBtn, { kind: 'secondary', onClick: () => setOpen(false), children: 'Cancel' }),
+          jsx(PBtn, { kind: 'primary', disabled: busy || !valid, onClick: create, children: busy ? 'Working…' : 'Create & open session' }),
+        ] }),
+      ] }),
+      ] }) }) : null,
+  ] })
+}
+
 function TasksToolbar() {
   const repos = useValue($selectedRepos)
   const filter = useValue($filter)
@@ -1101,6 +1214,7 @@ function TasksToolbar() {
     jsxs('div', { className: 'flex items-center gap-1.5', children: [
       jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'flex-1' }),
       jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
+      jsx(NewWorktreeButton, {}),
     ] }),
     jsx('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
       jsx('div', { style: { width: '100%', maxWidth: 300 }, children:
