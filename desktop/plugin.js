@@ -1142,7 +1142,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     ] }),
   ] })
   const setup = dialog !== null
-  return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
+  return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), style: { visibility: checked || busy ? 'visible' : 'hidden' }, children: [
     jsxs('div', { className: 'flex items-stretch gap-1', children: [
       jsx(PBtn, {
         kind: 'primary', className: 'flex-1', disabled: busy || !checked,
