@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -470,4 +470,14 @@ test('branchOk and formatFreeSeedMessage', () => {
   assert.equal(branchOk(''), false)
   const m = formatFreeSeedMessage('o/r', 'feat/x')
   assert.ok(m.startsWith('Work on o/r branch feat/x'))
+})
+
+test('worktreeToItems skips the main checkout', () => {
+  const clones = [{ path: '/r/a', remote: 'https://github.com/o/a.git' }]
+  const lists = [[{ path: '/r/a', branch: 'main' }, { path: '/r/a/.worktrees/fix-1', branch: 'fix/1' }, { path: '/r/a/.worktrees/x', branch: '' }]]
+  const items = worktreeToItems(clones, lists)
+  assert.equal(items.length, 1)
+  assert.equal(items[0].kind, 'worktree')
+  assert.equal(items[0].repo, 'o/a')
+  assert.equal(items[0].branch, 'fix/1')
 })

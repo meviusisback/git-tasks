@@ -541,6 +541,25 @@ export async function ghJson(cmd) {
   try { return JSON.parse(out) } catch { throw new Error('gh JSON parse failed: ' + out.slice(0, 300)) }
 }
 
+// Righe worktree: un item per worktree non principale di ogni clone.
+export function worktreeToItems(clones, lists) {
+  const items = []
+  clones.forEach((c, i) => {
+    const repo = remoteToRepo(c?.remote) || String(c?.path || '').split('/').pop() || 'local'
+    for (const w of (lists[i] || [])) {
+      if (!w?.branch || w.path === c?.path) continue
+      items.push({ kind: 'worktree', repo, number: 0, title: w.branch, branch: w.branch, path: w.path, state: 'OPEN', isDraft: false, author: '', createdAt: '', updatedAt: '', labels: [], url: '' })
+    }
+  })
+  return items
+}
+
+export async function fetchWorktrees() {
+  const clones = await discoverLocalClones()
+  const settled = await Promise.allSettled(clones.map(c => listWorktrees(c.path)))
+  return worktreeToItems(clones, settled.map(r => r.status === 'fulfilled' ? r.value : []))
+}
+
 export async function fetchRepoItems(repos, opts = {}) {
   const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
   const list = parseRepoList(normalized)
@@ -623,17 +642,18 @@ export async function createWorktree(repoRoot, branch, baseRef = '') {
   return `${repoRoot}/${dir}`
 }
 
-export function formatFreeSeedMessage(repo, branch) {
-  return [`Work on ${repo} branch ${branch}`, '', 'Verify the branch state with `git status` and `gh` before changing code.'].join('\n')
+export function formatFreeSeedMessage(repo, branch, skill = '') {
+  const invoke = String(skill || '').trim()
+  return [`Work on ${repo} branch ${branch}`, ...(invoke ? [invoke] : []), '', 'Verify the branch state with `git status` and `gh` before changing code.'].join('\n')
 }
 
-export async function startFreeSession(repo, branch, worktreePath, profile = null) {
+export async function startFreeSession(repo, branch, worktreePath, profile = null, skill = '') {
   const raw = await host.request('session.create', {
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${repo} ${branch}`.slice(0, 120),
     ...(profile ? { profile } : {}),
-    messages: [{ role: 'user', content: formatFreeSeedMessage(repo, branch) }],
+    messages: [{ role: 'user', content: formatFreeSeedMessage(repo, branch, skill) }],
   })
   const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
   const storedId = res?.stored_session_id || res?.session_id || res?.id
@@ -684,7 +704,7 @@ export const MAX_CLONE_ROOTS = 20
 
 const FILTER_ENUMS = {
   state: ['open', 'all', 'closed'],
-  kind: ['all', 'pr', 'issue'],
+  kind: ['all', 'pr', 'issue', 'worktree'],
   sort: ['updated', 'created', 'repo'],
 }
 
@@ -779,6 +799,52 @@ function SessionDot({ presence }) {
   ] })
 }
 
+function SkillPicker({ value, onChange, label }) {
+  const [skills, setSkills] = useState(null)
+  const [open, setOpen] = useState(false)
+  const q = String(value || '').trim()
+  const matches = open ? (skills || []).filter(n => skillMatchesQuery(n, value)).slice(0, 8) : []
+  const ensure = () => { if (skills === null) { listSkills().then(setSkills).catch(() => setSkills([])) } }
+  return jsxs('div', { className: 'flex flex-col gap-1', children: [
+    jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `${label || 'Skill on start (optional)'}${Array.isArray(skills) ? ` — ${skills.length} loaded` : ''}` }),
+    jsxs('div', { className: 'flex items-stretch gap-1', children: [
+      jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 flex-1 text-[11px]',
+        onChange: e => { onChange(e.target.value); setOpen(true) },
+        onFocus: () => { ensure(); setOpen(true) } }),
+      jsx(PBtn, { kind: 'secondary', className: 'px-2', 'aria-label': 'Browse skills',
+        onClick: () => { ensure(); setOpen(o => !o) },
+        children: jsx(Codicon, { name: open ? 'chevron-up' : 'chevron-down' }) }),
+    ] }),
+    open ? (matches.length ? jsxs('div', {
+      className: 'flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1', style: ST_DEEP,
+      children: matches.map(n =>
+        jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
+          onClick: () => { onChange(n); setOpen(false) }, children: n })),
+    }) : jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') })) : null,
+  ] })
+}
+
+function FilterCombo({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const matches = open ? (options || []).filter(n => skillMatchesQuery(n, value)).slice(0, 8) : []
+  return jsxs('div', { className: 'flex flex-col gap-1', children: [
+    jsxs('div', { className: 'flex items-stretch gap-1', children: [
+      jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 flex-1 text-[11px]',
+        onChange: e => { onChange(e.target.value); setOpen(true) },
+        onFocus: () => setOpen(true) }),
+      jsx(PBtn, { kind: 'secondary', className: 'px-2', 'aria-label': 'Browse options',
+        onClick: () => setOpen(o => !o),
+        children: jsx(Codicon, { name: open ? 'chevron-up' : 'chevron-down' }) }),
+    ] }),
+    open ? (matches.length ? jsxs('div', {
+      className: 'flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1', style: ST_DEEP,
+      children: matches.map(n =>
+        jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
+          onClick: () => { onChange(n); setOpen(false) }, children: n })),
+    }) : jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: 'No matching repositories.' })) : null,
+  ] })
+}
+
 function useRepoItems() {
   const repos = useValue($selectedRepos)
   const filter = useValue($filter)
@@ -827,8 +893,6 @@ function StartWorktreeButton({ item, linkedSid }) {
   const [baseRef, setBaseRef] = useState('')
   const [linkSid, setLinkSid] = useState('')
   const [skillName, setSkillName] = useState('')
-  const [skills, setSkills] = useState(null)
-  const [skillOpen, setSkillOpen] = useState(false)
   const liveRows = useLiveRows()
   const creatingRef = { current: false }
   const roots = useValue($cloneRoots)
@@ -881,9 +945,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       try { setProfiles(await listProfiles()) } catch { setProfiles([]) }
     }
     if (!targetRoot) setTargetRoot((roots && roots[0]) || '~/repo')
-    if (skills === null) {
-      try { setSkills(await listSkills()) } catch { setSkills([]) }
-    }
+
   }
   const openExisting = async () => {
     setBusy(true); setErr('')
@@ -977,8 +1039,6 @@ function StartWorktreeButton({ item, linkedSid }) {
     ] }),
   ] })
   const setup = dialog !== null
-  const skillQuery = skillName.trim().toLowerCase()
-  const skillMatches = skillOpen ? (skills || []).filter(n => skillMatchesQuery(n, skillName)).slice(0, 8) : []
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
     jsxs('div', { className: 'flex items-stretch gap-1', children: [
       jsx(PBtn, {
@@ -1018,23 +1078,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       ] }),
       cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
-        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `Skill on start (optional)${Array.isArray(skills) ? ` — ${skills.length} loaded` : ''}` }),
-        jsxs('div', { className: 'flex flex-col gap-1', children: [
-          jsxs('div', { className: 'flex items-stretch gap-1', children: [
-            jsx(Input, { value: skillName, placeholder: 'type to search skills…', className: 'h-7 flex-1 text-[11px]',
-              onChange: e => { setSkillName(e.target.value); setSkillOpen(true) },
-              onFocus: () => setSkillOpen(true) }),
-            jsx(PBtn, { kind: 'secondary', className: 'px-2', 'aria-label': 'Browse skills',
-              onClick: () => { setSkillOpen(o => !o); if (skills === null) { listSkills().then(setSkills).catch(() => setSkills([])) } },
-              children: jsx(Codicon, { name: skillOpen ? 'chevron-up' : 'chevron-down' }) }),
-          ] }),
-          skillOpen ? (skillMatches.length ? jsxs('div', {
-            className: 'flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1', style: ST_DEEP, children:
-            skillMatches.map(n =>
-              jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-                onClick: () => { setSkillName(n); setSkillOpen(false) }, children: n })),
-          }) : jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (skillQuery ? 'No matching skills.' : 'No skills found.') })) : null,
-        ] }),
+                jsx(SkillPicker, { value: skillName, onChange: setSkillName }),
         jsx(PBtn, { kind: 'primary', disabled: busy, onClick: confirmNew, children: 'Create worktree' }),
       ] }) : jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `No local clone of ${item.repo}. Clone into:` }),
@@ -1067,16 +1111,29 @@ function LabelChip({ label }) {
 
 function TaskCard({ item, linked }) {
   const [hov, setHov] = useState(false)
+  const [opening, setOpening] = useState(false)
   const openTaskDetail = () => $selectedTask.set(item)
-  return jsxs('div', { className: 'group cursor-pointer rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-elevated) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD, cursor: 'pointer', borderColor: hov ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)', filter: hov ? 'brightness(1.04)' : 'none' }, onClick: () => openTaskDetail(item), onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), children: [
+  const openWtSession = async e => {
+    if (e) e.stopPropagation()
+    if (opening) return
+    setOpening(true)
+    try {
+      await startFreeSession(item.repo, item.branch, item.path, null)
+    } catch (err) {
+      host.notify?.({ kind: 'error', message: String(err?.message || err) })
+      setOpening(false)
+    }
+  }
+  const isWt = item.kind === 'worktree'
+  return jsxs('div', { className: 'group cursor-pointer rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-elevated) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD, cursor: 'pointer', borderColor: hov ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)', filter: hov ? 'brightness(1.04)' : 'none' }, onClick: () => { if (isWt) void openWtSession(); else openTaskDetail(item) }, onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), children: [
     jsxs('div', { className: 'flex flex-wrap items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
         jsxs('div', { className: 'flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
           jsx(SessionDot, { presence: linked?.[itemRef(item)]?.presence }),
-          jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
-          jsx('span', { className: 'font-semibold', style: ST_ACCENT, children: item.kind === 'pr' ? 'PR' : 'Issue' }),
+          jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : item.kind === 'worktree' ? 'git-branch' : 'issue-opened' }),
+          jsx('span', { className: 'font-semibold', style: ST_ACCENT, children: item.kind === 'pr' ? 'PR' : item.kind === 'worktree' ? 'Worktree' : 'Issue' }),
           jsx('span', { className: 'font-medium break-words', style: ST_TEXT, children: item.repo }),
-          jsx('span', { children: `#${item.number}` }),
+          item.kind === 'worktree' ? null : jsx('span', { children: `#${item.number}` }),
           jsx('span', { className: 'ml-1 shrink-0 font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
           (() => { const cs = checkSummary(item); if (cs.tone === 'none') return null
             const fill = cs.tone === 'ok' ? '#a6e3a1' : cs.tone === 'fail' ? '#f38ba8' : '#f9e2af'
@@ -1084,7 +1141,10 @@ function TaskCard({ item, linked }) {
           (() => { const rl = reviewLabel(item.reviewDecision); return rl ? jsx('span', { className: 'shrink-0', style: ST_MUTED, children: rl }) : null })(),
         ] }),
         jsx('div', { className: 'mt-1 text-sm font-semibold break-words', style: ST_TEXT, children: item.title }),
-        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
+        jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children:
+          item.kind === 'worktree'
+            ? [jsx('span', { className: 'break-all', children: item.path })]
+            : [
           jsx('span', { children: item.author || '—' }),
           jsx('span', { children: '·' }),
           jsx('span', { children: formatTaskAge(item.updatedAt) }),
@@ -1092,7 +1152,9 @@ function TaskCard({ item, linked }) {
         ] }),
       ] }),
       jsxs('div', { className: 'flex shrink-0 flex-col items-stretch justify-center gap-1', children: [
-        jsx(StartWorktreeButton, { item, linkedSid: linked?.[itemRef(item)]?.sid }),
+        item.kind === 'worktree'
+          ? jsx(PBtn, { kind: 'primary', disabled: opening, onClick: openWtSession, children: opening ? 'Opening…' : 'Open session' })
+          : jsx(StartWorktreeButton, { item, linkedSid: linked?.[itemRef(item)]?.sid }),
       ] }),
       
     ] }),
@@ -1120,6 +1182,7 @@ function NewWorktreeButton() {
   const [branch, setBranch] = useState('')
   const [profile, setProfile] = useState('')
   const [baseRef, setBaseRef] = useState('')
+  const [fskill, setFSkill] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [profiles, setProfiles] = useState(null)
@@ -1149,9 +1212,9 @@ function NewWorktreeButton() {
         await sh(`gh repo clone ${sq(repo)} ${sq(root)}`)
       }
       const path = await createWorktree(root, branch, baseRef)
-      await startFreeSession(repo, branch, path, profile || null)
+      await startFreeSession(repo, branch, path, profile || null, fskill)
       setOpen(false)
-      setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setErr('')
+      setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setFSkill(''); setErr('')
     } catch (e) {
       const msg = String(e?.message || e)
       setErr(msg)
@@ -1160,7 +1223,6 @@ function NewWorktreeButton() {
       setBusy(false)
     }
   }
-  const options = (ghRepos.data || []).map(r => r.repo).filter(Boolean)
   return jsxs('div', { children: [
     jsx(PBtn, { kind: 'secondary', onClick: () => { setErr(''); setOpen(true) }, children: 'New worktree' }),
     open ? jsx(Dialog, { open: true, onOpenChange: o => { if (!o) setOpen(false) }, children:
@@ -1168,10 +1230,7 @@ function NewWorktreeButton() {
       jsx(DialogHeader, { children: jsx(DialogTitle, { children: 'Create new worktree' }) }),
       jsxs('div', { className: 'flex flex-col gap-1.5', children: [
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Repository' }),
-        jsxs(Select, { value: repo, onValueChange: setRepo, children: [
-          jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: ghRepos.isLoading ? 'Loading repos…' : 'Pick a repository' }) }),
-          jsxs(SelectContent, { children: options.map(r => jsx(SelectItem, { value: r, children: r }, r)) }),
-        ] }),
+        jsx(FilterCombo, { value: repo, onChange: setRepo, options: (ghRepos.data || []).map(r => r.repo).filter(Boolean), placeholder: ghRepos.isLoading ? 'Loading repos…' : 'type to search repositories…' }),
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Branch name' }),
         jsx(Input, { value: branch, onChange: e => setBranch(e.target.value), placeholder: 'e.g. feat/login-form', className: 'h-7 text-[11px]' }),
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
@@ -1182,6 +1241,7 @@ function NewWorktreeButton() {
             ...((profiles || []).map(p => jsx(SelectItem, { value: p, children: p }, p))),
           ] }),
         ] }),
+        jsx(SkillPicker, { value: fskill, onChange: setFSkill }),
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Start from' }),
         jsxs(Select, { value: baseRef, onValueChange: setBaseRef, children: [
           jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Branch' }) }),
@@ -1225,7 +1285,7 @@ function TasksToolbar() {
       jsx('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
         jsx('div', { style: { width: '100%', maxWidth: 300 }, children:
           jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full',
-            options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }] }),
+            options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
         }),
       }),
       jsxs(Select, { value: filter.sort, onValueChange: v => set({ sort: v }), children: [
@@ -1263,7 +1323,10 @@ function TasksList() {
   const repos = useValue($selectedRepos)
   const filter = useValue($filter)
   const q = useRepoItems()
-  const rows = useMemo(() => sortItems(filterItems(q.data || [], filter), filter.sort), [q.data, filter])
+  const wq = useQuery({ queryKey: [ID, 'worktrees'], queryFn: fetchWorktrees, staleTime: 60_000, refetchInterval: 120_000, enabled: repos.length > 0 })
+  const rows = useMemo(() => filter.kind === 'worktree'
+    ? sortItems(filterItems(wq.data || [], { ...filter, kind: 'worktree' }), filter.sort)
+    : sortItems(filterItems(q.data || [], filter), filter.sort), [q.data, wq.data, filter])
   const grouped = filter.group ? groupByRepo(rows) : null
   const linked = useLinkedSessions()
   if (!repos.length) return jsx(EmptyState, { title: 'No repositories selected', description: 'Pick repositories in Settings -> Plugins -> Git Tasks.' })
