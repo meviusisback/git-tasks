@@ -647,6 +647,7 @@ function StartWorktreeButton({ item }) {
   const [profile, setProfile] = useState('')
   const [targetRoot, setTargetRoot] = useState('')
   const [baseRef, setBaseRef] = useState('')
+  const creatingRef = { current: false }
   const roots = useValue($cloneRoots)
   useEffect(() => {
     let cancelled = false
@@ -718,19 +719,28 @@ function StartWorktreeButton({ item }) {
     setBusy(false)
   }
   const confirmNew = async () => {
+    if (creatingRef.current) return
+    creatingRef.current = true
     setBusy(true); setErr('')
     try {
       const clones = await discoverLocalClones()
       const root = pickLocalClone(clones, item.repo)
       if (!root) throw new Error('Clone not found. Use the clone option below.')
-      await startWorktreeSession(item, await createWorktree(root, deriveBranchName(item), baseRef), profile || null)
-      host.notify?.({ kind: 'success', message: 'Worktree session opened.' })
+      const slug = deriveBranchName(item).replace(/\//g, '-')
+      const reuse = `${root}/.worktrees/${slug}`
+      const already = await sh(`[ -d ${sq(reuse)} ] && echo yes || echo no`)
+      const path = already === 'yes' ? reuse : await createWorktree(root, deriveBranchName(item), baseRef)
+      await startWorktreeSession(item, path, profile || null)
+      host.notify?.({ kind: 'success', message: already === 'yes' ? 'Reopened existing worktree session.' : 'Worktree session opened.' })
+      setExistingPath(path)
       setSetup(false)
     } catch (error) {
       fail(error)
+      creatingRef.current = false
       return
     }
     setBusy(false)
+    creatingRef.current = false
   }
   const cloneAndStart = async () => {
     setBusy(true); setErr('')
