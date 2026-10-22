@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -406,4 +406,13 @@ test('view/comment builders validate repo and number', () => {
 test('createWorktree refuses dash-leading base refs', async () => {
   await assert.rejects(() => createWorktree('/tmp/x', 'b', '--force'), /unsafe base ref/)
   await assert.rejects(() => createWorktree('/tmp/x', 'b', '-h'), /unsafe base ref/)
+})
+
+test('sessionPresence maps live status to dots', () => {
+  assert.equal(sessionPresence(null), null)
+  assert.deepEqual(sessionPresence({ status: 'working' }), { tone: 'working', label: 'agent working' })
+  assert.deepEqual(sessionPresence({ status: 'streaming' }), { tone: 'working', label: 'agent working' })
+  assert.deepEqual(sessionPresence({ status: 'waiting' }), { tone: 'waiting', label: 'waiting for input' })
+  assert.deepEqual(sessionPresence({ status: 'idle' }), { tone: 'idle', label: 'session idle' })
+  assert.equal(sessionPresence({ status: 'starting' }).tone, 'starting')
 })

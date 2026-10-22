@@ -262,6 +262,32 @@ export function checkSummary(item) {
   return { tone: 'none', label: '' }
 }
 
+// Stato live di una sessione collegata: pallino + etichetta.
+export function sessionPresence(row) {
+  if (!row) return null
+  const st = String(row.status || '').toLowerCase()
+  if (st === 'working' || st === 'streaming') return { tone: 'working', label: 'agent working' }
+  if (st === 'waiting') return { tone: 'waiting', label: 'waiting for input' }
+  if (st === 'starting' || st === 'resuming') return { tone: 'starting', label: 'session starting' }
+  if (st === 'idle') return { tone: 'idle', label: 'session idle' }
+  return { tone: 'idle', label: 'session idle' }
+}
+
+export const SESSION_DOT_FILL = {
+  working: '#a6e3a1',
+  waiting: '#f9e2af',
+  starting: '#89b4fa',
+  idle: 'var(--ui-text-quaternary)',
+}
+
+export async function fetchLiveSessions() {
+  try {
+    const raw = await host.request('session.active_list', {})
+    const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
+    return Array.isArray(res?.sessions) ? res.sessions : []
+  } catch { return [] }
+}
+
 export function reviewLabel(decision) {
   const d = String(decision || '').toUpperCase()
   if (d === 'APPROVED') return 'approved'
@@ -541,6 +567,7 @@ export async function startWorktreeSession(item, worktreePath, profile = null) {
     const map = pluginCtx.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {}
     map[itemRef(item)] = storedId
     pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+    try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
   }
   return raw
 }
@@ -600,6 +627,43 @@ export function persistCloneRoots(ctx, text) {
 
 export function openTaskDetail(item) {
   $selectedTask.set(item)
+}
+
+const $sessionMapVersion = atom(0)
+
+function readSessionMap() {
+  try { return pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {} } catch { return {} }
+}
+
+function useSessionDots() {
+  const version = useValue($sessionMapVersion)
+  const live = useQuery({
+    queryKey: [ID, 'live', version],
+    queryFn: fetchLiveSessions,
+    refetchInterval: 10_000,
+    staleTime: 5_000,
+  })
+  return useMemo(() => {
+    const rows = Array.isArray(live.data) ? live.data : []
+    const byId = {}
+    for (const r of rows) {
+      if (r?.session_key) byId[r.session_key] = r
+      if (r?.id) byId[r.id] = r
+    }
+    const map = readSessionMap()
+    const dots = {}
+    for (const ref of Object.keys(map)) {
+      const row = byId[map[ref]]
+      dots[ref] = row ? sessionPresence(row) : { tone: 'gone', label: 'session ended' }
+    }
+    return dots
+  }, [live.data, version])
+}
+
+function SessionDot({ presence }) {
+  if (!presence) return null
+  const fill = presence.tone === 'gone' ? 'var(--ui-text-quaternary)' : (SESSION_DOT_FILL[presence.tone] || 'var(--ui-text-quaternary)')
+  return jsx('span', { style: { width: 7, height: 7, borderRadius: 9999, backgroundColor: fill, display: 'inline-block', flexShrink: 0 }, title: presence.label })
 }
 
 function useRepoItems() {
@@ -692,6 +756,7 @@ function StartWorktreeButton({ item }) {
         const map0 = (pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {})
         delete map0[itemRef(item)]
         try { pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map0) } catch {}
+        try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
         setExistingPath(null)
         setSetup(true)
         throw new Error('Worktree folder is gone. Pick a profile and create a fresh one below.')
@@ -705,6 +770,7 @@ function StartWorktreeButton({ item }) {
         } catch (e) {
           delete map[itemRef(item)]
           try { pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map) } catch {}
+          try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
           host.notify?.({ kind: 'info', message: 'Saved session is gone — starting a fresh one.' })
           await startWorktreeSession(item, existingPath)
           return
@@ -809,13 +875,14 @@ function LabelChip({ label }) {
   return jsx('span', { className: 'truncate rounded bg-(--ui-bg-tertiary) px-1 text-[9px] text-(--ui-text-tertiary)', style: { ...ST_DEEP, ...ST_MUTED }, children: label })
 }
 
-function TaskCard({ item }) {
+function TaskCard({ item, dots }) {
   const [hov, setHov] = useState(false)
   const openTaskDetail = () => $selectedTask.set(item)
   return jsxs('div', { className: 'group cursor-pointer rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-elevated) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD, cursor: 'pointer', borderColor: hov ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)', filter: hov ? 'brightness(1.04)' : 'none' }, onClick: () => openTaskDetail(item), onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), children: [
     jsxs('div', { className: 'flex flex-wrap items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
         jsxs('div', { className: 'flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
+          jsx(SessionDot, { presence: dots?.[itemRef(item)] }),
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
           jsx('span', { className: 'font-semibold', style: ST_ACCENT, children: item.kind === 'pr' ? 'PR' : 'Issue' }),
           jsx('span', { className: 'font-medium break-words', style: ST_TEXT, children: item.repo }),
@@ -922,6 +989,7 @@ function TasksList() {
   const q = useRepoItems()
   const rows = useMemo(() => sortItems(filterItems(q.data || [], filter), filter.sort), [q.data, filter])
   const grouped = filter.group ? groupByRepo(rows) : null
+  const dots = useSessionDots()
   if (!repos.length) return jsx(EmptyState, { title: 'No repositories selected', description: 'Pick repositories in Settings -> Plugins -> Git Tasks.' })
   if (q.isLoading) return jsxs('div', { className: 'space-y-2 p-3', children: [
     jsx(Skeleton, { className: 'h-12 w-full rounded-md' }),
@@ -941,8 +1009,8 @@ function TasksList() {
   }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
   return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
-    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item }, itemRef(item)))])
-    : rows.map(item => jsx(TaskCard, { item }, itemRef(item))) }) })
+    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, dots }, itemRef(item)))])
+    : rows.map(item => jsx(TaskCard, { item, dots }, itemRef(item))) }) })
 }
 
 function TasksPane() {
@@ -952,6 +1020,7 @@ function TasksPane() {
 }
 
 function TaskDetail({ item, onClose }) {
+  const detailDots = useSessionDots()
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -985,6 +1054,7 @@ function TaskDetail({ item, onClose }) {
               jsx('span', { className: 'size-1.5 rounded-full', style: { background: stateColor(item.state, item.isDraft) } }),
               stateText,
             ] }),
+            jsx(SessionDot, { presence: detailDots[itemRef(item)] }),
             jsx('span', { className: 'truncate text-[11px] font-semibold text-(--ui-accent)', style: ST_ACCENT, children: itemRef(item) }),
           ] }),
           jsx('div', { className: 'mt-1 text-[15px] font-semibold leading-snug text-(--ui-text-primary)', style: ST_TEXT, children: detail.title || item.title }),
