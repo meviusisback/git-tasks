@@ -930,7 +930,7 @@ function SkillPicker({ value, onChange, label }) {
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
           matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
             jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-              onClick: () => { onChange(n); setOpen(false) }, children: n })) })
+              onMouseDown: e => { e.preventDefault(); onChange(n); setOpen(false) }, children: n })) })
           : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') }) }) : null,
       ] }),
     ] }),
@@ -962,7 +962,7 @@ function FilterCombo({ value, onChange, options, placeholder }) {
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
           matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
             jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-              onClick: () => { onChange(n); setOpen(false) }, children: n })) })
+              onMouseDown: e => { e.preventDefault(); onChange(n); setOpen(false) }, children: n })) })
           : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: 'No matching repositories.' }) }) : null,
       ] }),
     ] }),
