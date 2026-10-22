@@ -939,7 +939,7 @@ function StartWorktreeButton({ item, linkedSid }) {
   ] })
   const setup = section !== null
   const skillQuery = skillName.trim().toLowerCase()
-  const skillMatches = (skillOpen && skillQuery) ? (skills || []).filter(n => n.toLowerCase().includes(skillQuery) && n !== skillName.trim()).slice(0, 8) : []
+  const skillMatches = skillOpen ? (skills || []).filter(n => !skillQuery || (n.toLowerCase().includes(skillQuery) && n !== skillName.trim())).slice(0, 8) : []
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
     jsxs('div', { className: 'flex items-stretch gap-1', children: [
       jsx(PBtn, {
@@ -977,17 +977,21 @@ function StartWorktreeButton({ item, linkedSid }) {
       cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Skill on start (optional)' }),
-        jsxs('div', { className: 'relative', children: [
-          jsx(Input, { value: skillName, placeholder: 'type to search skills…', className: 'h-7 text-[11px]',
-            onChange: e => { setSkillName(e.target.value); setSkillOpen(true) },
-            onFocus: () => setSkillOpen(true),
-            onBlur: () => setTimeout(() => setSkillOpen(false), 120) }),
-          skillMatches.length ? jsxs('div', {
-            className: 'absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-lg border p-1', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
-            children: skillMatches.map(n =>
-              jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)',
-                onMouseDown: e => { e.preventDefault(); setSkillName(n); setSkillOpen(false) }, children: n })),
-          }) : null,
+        jsxs('div', { className: 'flex flex-col gap-1', children: [
+          jsxs('div', { className: 'flex items-stretch gap-1', children: [
+            jsx(Input, { value: skillName, placeholder: 'type to search skills…', className: 'h-7 flex-1 text-[11px]',
+              onChange: e => { setSkillName(e.target.value); setSkillOpen(true) },
+              onFocus: () => setSkillOpen(true) }),
+            jsx(PBtn, { kind: 'secondary', className: 'px-2', 'aria-label': 'Browse skills',
+              onClick: () => { setSkillOpen(o => !o); if (skills === null) { listSkills().then(setSkills).catch(() => setSkills([])) } },
+              children: jsx(Codicon, { name: skillOpen ? 'chevron-up' : 'chevron-down' }) }),
+          ] }),
+          skillOpen ? (skillMatches.length ? jsxs('div', {
+            className: 'flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1', style: ST_DEEP, children:
+            skillMatches.map(n =>
+              jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
+                onClick: () => { setSkillName(n); setSkillOpen(false) }, children: n })),
+          }) : jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (skillQuery ? 'No matching skills.' : 'No skills found.') })) : null,
         ] }),
         jsx(PBtn, { kind: 'primary', disabled: busy, onClick: confirmNew, children: 'Create worktree' }),
       ] }) : jsxs('div', { className: 'flex flex-col gap-1', children: [
