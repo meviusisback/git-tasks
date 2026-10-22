@@ -404,7 +404,7 @@ export function parseSkillNames(text) {
 
 export async function listSkills() {
   const cmd = 'find "$HOME"/.hermes/skills "$HOME"/.hermes/profiles -path \'*skills*\' -name SKILL.md 2>/dev/null -exec grep -h -m1 \'^name:\' {} +'
-  return parseSkillNames(await sh(cmd))
+  return parseSkillNames(await shBig(cmd))
 }
 
 export function profileName(p) {
@@ -988,7 +988,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       ] }),
       cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
-        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Skill on start (optional)' }),
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `Skill on start (optional)${Array.isArray(skills) ? ` — ${skills.length} loaded` : ''}` }),
         jsxs('div', { className: 'flex flex-col gap-1', children: [
           jsxs('div', { className: 'flex items-stretch gap-1', children: [
             jsx(Input, { value: skillName, placeholder: 'type to search skills…', className: 'h-7 flex-1 text-[11px]',
