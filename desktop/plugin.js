@@ -912,18 +912,18 @@ function SkillPicker({ value, onChange, label }) {
         onChange: e => { onChange(e.target.value); setOpen(true) },
         onFocus: () => ensure() }),
       jsx('button', { type: 'button', 'aria-label': 'Browse skills',
-        className: 'absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
+        className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
         style: { color: 'var(--ui-text-tertiary)' },
         onClick: () => { ensure(); setOpen(o => !o) },
         children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
+      open ? (matches.length ? jsxs('div', {
+        className: 'absolute inset-x-0 top-full z-50 mt-1 flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
+        children: matches.map(n =>
+          jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
+            onClick: () => { onChange(n); setOpen(false) }, children: n })),
+      }) : jsx('div', { className: 'absolute inset-x-0 top-full z-50 mt-1 rounded-lg border p-1.5 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' }, children:
+        jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') }) })) : null,
     ] }),
-    open ? (matches.length ? jsxs('div', {
-      className: 'absolute inset-x-0 top-full z-50 mt-1 flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
-      children: matches.map(n =>
-        jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-          onClick: () => { onChange(n); setOpen(false) }, children: n })),
-    }) : jsx('div', { className: 'absolute inset-x-0 top-full z-50 mt-1 rounded-lg border p-1.5 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' }, children:
-      jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') }) })) : null,
   ] })
 }
 
@@ -936,18 +936,18 @@ function FilterCombo({ value, onChange, options, placeholder }) {
         onChange: e => { onChange(e.target.value); setOpen(true) },
         onFocus: undefined }),
       jsx('button', { type: 'button', 'aria-label': 'Browse options',
-        className: 'absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
+        className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
         style: { color: 'var(--ui-text-tertiary)' },
         onClick: () => setOpen(o => !o),
         children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
+      open ? (matches.length ? jsxs('div', {
+        className: 'absolute inset-x-0 top-full z-50 mt-1 flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
+        children: matches.map(n =>
+          jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
+            onClick: () => { onChange(n); setOpen(false) }, children: n })),
+      }) : jsx('div', { className: 'absolute inset-x-0 top-full z-50 mt-1 rounded-lg border p-1.5 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' }, children:
+        jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: 'No matching repositories.' }) })) : null,
     ] }),
-    open ? (matches.length ? jsxs('div', {
-      className: 'absolute inset-x-0 top-full z-50 mt-1 flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
-      children: matches.map(n =>
-        jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-          onClick: () => { onChange(n); setOpen(false) }, children: n })),
-    }) : jsx('div', { className: 'absolute inset-x-0 top-full z-50 mt-1 rounded-lg border p-1.5 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' }, children:
-      jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: 'No matching repositories.' }) })) : null,
   ] })
 }
 
