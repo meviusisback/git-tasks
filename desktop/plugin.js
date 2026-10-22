@@ -914,15 +914,17 @@ function SkillPicker({ value, onChange, label }) {
         if (wrapRef.current) setPopWidth(wrapRef.current.getBoundingClientRect().width)
         if (!e.target.closest || !e.target.closest('[data-chev]')) e.stopPropagation()
       }, children: [
-      jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 w-full pr-8 text-[11px]',
-        onChange: e => { onChange(e.target.value); ensure(); setOpen(true) },
-        onFocus: () => ensure() }),
       jsx(Popover, { open, onOpenChange: setOpen, children: [
         jsx(PopoverTrigger, { asChild: true, children:
-          jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse skills',
-            className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
-            style: { color: 'var(--ui-text-tertiary)' },
-            children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }) }),
+          jsxs('div', { className: 'relative', children: [
+            jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 w-full pr-8 text-[11px]',
+              onChange: e => { onChange(e.target.value); ensure(); setOpen(true) },
+              onFocus: () => ensure() }),
+            jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse skills',
+              className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
+              style: { color: 'var(--ui-text-tertiary)' },
+              children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
+          ] }) }),
         open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
           matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
@@ -945,14 +947,16 @@ function FilterCombo({ value, onChange, options, placeholder }) {
         if (wrapRef.current) setPopWidth(wrapRef.current.getBoundingClientRect().width)
         if (!e.target.closest || !e.target.closest('[data-chev]')) e.stopPropagation()
       }, children: [
-      jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 w-full pr-8 text-[11px]',
-        onChange: e => { onChange(e.target.value); setOpen(true) } }),
       jsx(Popover, { open, onOpenChange: setOpen, children: [
         jsx(PopoverTrigger, { asChild: true, children:
-          jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse options',
-            className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
-            style: { color: 'var(--ui-text-tertiary)' },
-            children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }) }),
+          jsxs('div', { className: 'relative', children: [
+            jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 w-full pr-8 text-[11px]',
+              onChange: e => { onChange(e.target.value); setOpen(true) } }),
+            jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse options',
+              className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
+              style: { color: 'var(--ui-text-tertiary)' },
+              children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
+          ] }) }),
         open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
           matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
