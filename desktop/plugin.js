@@ -910,19 +910,20 @@ function SkillPicker({ value, onChange, label }) {
     jsxs('div', { className: 'relative', children: [
       jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 w-full pr-8 text-[11px]',
         onChange: e => { onChange(e.target.value); setOpen(true) },
-        onFocus: () => { ensure(); setOpen(true) } }),
+        onFocus: () => ensure() }),
       jsx('button', { type: 'button', 'aria-label': 'Browse skills',
         className: 'absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
         style: { color: 'var(--ui-text-tertiary)' },
         onClick: () => { ensure(); setOpen(o => !o) },
-        children: jsx(Codicon, { name: open ? 'chevron-up' : 'chevron-down' }) }),
+        children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
     ] }),
     open ? (matches.length ? jsxs('div', {
-      className: 'flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1', style: ST_DEEP,
+      className: 'absolute inset-x-0 top-full z-50 mt-1 flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
       children: matches.map(n =>
         jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
           onClick: () => { onChange(n); setOpen(false) }, children: n })),
-    }) : jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') })) : null,
+    }) : jsx('div', { className: 'absolute inset-x-0 top-full z-50 mt-1 rounded-lg border p-1.5 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' }, children:
+      jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') }) })) : null,
   ] })
 }
 
@@ -933,19 +934,20 @@ function FilterCombo({ value, onChange, options, placeholder }) {
     jsxs('div', { className: 'relative', children: [
       jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 w-full pr-8 text-[11px]',
         onChange: e => { onChange(e.target.value); setOpen(true) },
-        onFocus: () => setOpen(true) }),
+        onFocus: undefined }),
       jsx('button', { type: 'button', 'aria-label': 'Browse options',
         className: 'absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
         style: { color: 'var(--ui-text-tertiary)' },
         onClick: () => setOpen(o => !o),
-        children: jsx(Codicon, { name: open ? 'chevron-up' : 'chevron-down' }) }),
+        children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
     ] }),
     open ? (matches.length ? jsxs('div', {
-      className: 'flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1', style: ST_DEEP,
+      className: 'absolute inset-x-0 top-full z-50 mt-1 flex max-h-40 flex-col gap-0.5 overflow-auto rounded-lg border p-1 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
       children: matches.map(n =>
         jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
           onClick: () => { onChange(n); setOpen(false) }, children: n })),
-    }) : jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: 'No matching repositories.' })) : null,
+    }) : jsx('div', { className: 'absolute inset-x-0 top-full z-50 mt-1 rounded-lg border p-1.5 shadow-lg', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' }, children:
+      jsx('div', { className: 'text-[10px]', style: ST_FAINT, children: 'No matching repositories.' }) })) : null,
   ] })
 }
 
