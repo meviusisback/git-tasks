@@ -1328,20 +1328,24 @@ function TasksToolbar() {
           options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
     }),
-    jsxs('div', { className: 'flex items-center justify-end gap-1.5', children: [
-      jsxs(Select, { value: filter.sort, onValueChange: v => set({ sort: v }), children: [
-        jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Sort' }) }),
-        jsxs(SelectContent, { children: [
-          jsx(SelectItem, { value: 'updated', children: 'Recently updated' }),
-          jsx(SelectItem, { value: 'created', children: 'Newest' }),
-          jsx(SelectItem, { value: 'repo', children: 'By repo' }),
+    jsxs('div', { className: 'flex flex-wrap items-center gap-1.5', children: [
+      repos.length > 1 ? jsx('div', { className: 'min-w-0 flex-1', children:
+        jsx(RepoFilterRow, { repos, selected: filter.repos, onChange: v => set({ repos: v }) }) }) : null,
+      jsxs('div', { className: 'ml-auto flex shrink-0 items-center gap-1.5', children: [
+        jsx('span', { className: 'text-[10px] font-semibold uppercase tracking-wide', style: ST_MUTED, children: 'Sort by' }),
+        jsxs(Select, { value: filter.sort, onValueChange: v => set({ sort: v }), children: [
+          jsx(SelectTrigger, { className: 'h-7 w-36 text-[11px]', children: jsx(SelectValue, { placeholder: 'Sort' }) }),
+          jsxs(SelectContent, { children: [
+            jsx(SelectItem, { value: 'updated', children: 'Recently updated' }),
+            jsx(SelectItem, { value: 'created', children: 'Newest' }),
+            jsx(SelectItem, { value: 'repo', children: 'By repo' }),
+          ] }),
         ] }),
+        jsx(Tip, { label: 'Group by repository', children: jsx(PBtn, {
+          kind: filter.group ? 'primary' : 'secondary',
+          onClick: () => set({ group: !filter.group }), children: 'Group' }) }),
       ] }),
-      jsx(Tip, { label: 'Group by repository', children: jsx(PBtn, {
-        kind: filter.group ? 'primary' : 'secondary',
-        onClick: () => set({ group: !filter.group }), children: 'Group' }) }),
     ] }),
-    repos.length > 1 ? jsx(RepoFilterRow, { repos, selected: filter.repos, onChange: v => set({ repos: v }) }) : null,
   ] })
 }
 
