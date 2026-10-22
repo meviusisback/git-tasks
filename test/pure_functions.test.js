@@ -439,3 +439,12 @@ test('decodeHexDump round-trips UTF-8', () => {
   assert.equal(decodeHexDump('48 69\n'), 'Hi')
   assert.equal(decodeHexDump(''), '')
 })
+
+test('formatSeedMessage appends the skill right after the ref', () => {
+  const m = formatSeedMessage({ kind: 'pr', repo: 'o/r', number: 7, title: 't', url: '' }, 'security-audit')
+  const lines = m.split('\n')
+  assert.equal(lines[0], 'Work on this GitHub pull request: o/r#7')
+  assert.equal(lines[1], 'security-audit')
+  const plain = formatSeedMessage({ kind: 'issue', repo: 'o/r', number: 1, title: 't', url: '' })
+  assert.ok(!plain.split('\n').includes('security-audit'))
+})
