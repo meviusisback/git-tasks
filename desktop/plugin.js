@@ -670,7 +670,7 @@ function readSessionMap() {
   try { return pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {} } catch { return {} }
 }
 
-function useLinkedSessions() {
+function useLiveRows() {
   const version = useValue($sessionMapVersion)
   const live = useQuery({
     queryKey: [ID, 'live', version],
@@ -678,8 +678,13 @@ function useLinkedSessions() {
     refetchInterval: 10_000,
     staleTime: 5_000,
   })
+  return Array.isArray(live.data) ? live.data : []
+}
+
+function useLinkedSessions() {
+  const rows = useLiveRows()
+  const version = useValue($sessionMapVersion)
   return useMemo(() => {
-    const rows = Array.isArray(live.data) ? live.data : []
     const byId = {}
     for (const r of rows) {
       if (r?.session_key) byId[r.session_key] = r
@@ -696,7 +701,7 @@ function useLinkedSessions() {
       if (ref && !out[ref]?.sid) out[ref] = { presence: sessionPresence(r), sid: r.session_key || r.id }
     }
     return out
-  }, [live.data, version])
+  }, [rows, version])
 }
 
 function SessionDot({ presence }) {
@@ -750,6 +755,8 @@ function StartWorktreeButton({ item, linkedSid }) {
   const [profile, setProfile] = useState('')
   const [targetRoot, setTargetRoot] = useState('')
   const [baseRef, setBaseRef] = useState('')
+  const [linkSid, setLinkSid] = useState('')
+  const liveRows = useLiveRows()
   const creatingRef = { current: false }
   const roots = useValue($cloneRoots)
   useEffect(() => {
@@ -775,6 +782,22 @@ function StartWorktreeButton({ item, linkedSid }) {
     host.notify?.({ kind: 'error', message: msg })
     setBusy(false)
     if (done) done()
+  }
+  const linkSession = async () => {
+    if (!linkSid) return
+    setBusy(true); setErr('')
+    try {
+      const map = readSessionMap()
+      map[itemRef(item)] = linkSid
+      pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+      try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
+      setSetup(false)
+      host.notify?.({ kind: 'success', message: 'Session linked to this task.' })
+    } catch (error) {
+      fail(error)
+      return
+    }
+    setBusy(false)
   }
   const openSetup = async e => {
     e.stopPropagation()
@@ -912,6 +935,14 @@ function StartWorktreeButton({ item, linkedSid }) {
         jsx(PBtn, { kind: 'primary', disabled: busy || !targetRoot, onClick: cloneAndStart, children: 'Clone & start' }),
         jsx('span', { className: 'text-[10px]', style: ST_FAINT, children: 'Add folders in Settings → Clone folders.' }),
       ] }),
+      (liveRows.length && !existingPath) ? jsxs('div', { className: 'flex flex-col gap-1', children: [
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Or link an open session' }),
+        jsxs(Select, { value: linkSid, onValueChange: setLinkSid, children: [
+          jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Pick session' }) }),
+          jsxs(SelectContent, { children: liveRows.map(r => jsx(SelectItem, { value: r.session_key || r.id, children: String(r.title || r.session_key || r.id).slice(0, 60) }, r.session_key || r.id)) }),
+        ] }),
+        jsx(PBtn, { kind: 'secondary', disabled: busy || !linkSid, onClick: linkSession, children: 'Link session' }),
+      ] }) : null,
       jsx(PBtn, { kind: 'secondary', onClick: () => setSetup(false), children: 'Close' }),
     ] }) : null,
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
