@@ -447,6 +447,20 @@ export function parseWorktreeList(text) {
   return out.filter(e => e.path)
 }
 
+// Trova il worktree di un task: slug derivato, suffisso anti-collisione,
+// oppure head reale della PR (worktree nato libero o dall'agente).
+export function findWorktreeForItem(entries, item) {
+  const branch = item?.kind === 'pr' && item.headRefName && !item.isCrossRepository
+    ? item.headRefName
+    : deriveBranchName(item)
+  const found = findWorktree(entries, branch)
+  if (found) return found
+  if (item?.kind === 'pr' && branch !== deriveBranchName(item)) {
+    return findWorktree(entries, deriveBranchName(item))
+  }
+  return null
+}
+
 // Trova il worktree di un branch: esatto oppure con suffisso anti-collisione.
 export function findWorktree(entries, branch) {
   if (!branch) return null
@@ -652,6 +666,10 @@ const BASEREF_SAFE = /^(?!-)[A-Za-z0-9_.\/-]+$/
 
 export async function createWorktree(repoRoot, branch, baseRef = '') {
   if (baseRef && !BASEREF_SAFE.test(baseRef)) throw new Error(`refusing unsafe base ref: ${baseRef}`)
+  try {
+    const adopted = (await listWorktrees(repoRoot)).find(w => w?.branch === branch)
+    if (adopted?.path) return adopted.path
+  } catch { /* fallback al flusso normale */ }
   const slug = String(branch).replace(/\//g, '-')
   let b = branch
   let dir = `.worktrees/${slug}`
@@ -937,7 +955,7 @@ function StartWorktreeButton({ item, linkedSid }) {
         const root = pickLocalClone(clones, item.repo)
         if (!cancelled) setCloneRoot(root)
         if (!root) { if (!cancelled) setExistingPath(null); return }
-        const found = findWorktree(await listWorktrees(root), deriveBranchName(item))
+        const found = findWorktreeForItem(await listWorktrees(root), item)
         if (!cancelled) setExistingPath(found)
       } catch {
         if (!cancelled) { setExistingPath(null); setCloneRoot(null) }
@@ -1026,7 +1044,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       if (!root) throw new Error('Clone not found. Use the clone option below.')
       const branch = deriveBranchName(item)
       const slug = branch.replace(/\//g, '-')
-      const existing = findWorktree(await listWorktrees(root), branch) || await (async () => {
+      const existing = findWorktreeForItem(await listWorktrees(root), item) || await (async () => {
         const dir = `${root}/.worktrees/${slug}`
         const yes = await sh(`[ -d ${sq(dir)} ] && echo yes || echo no`)
         return yes === 'yes' ? dir : null
@@ -1254,6 +1272,20 @@ function NewWorktreeButton() {
       }
       const path = await createWorktree(root, branch, baseRef)
       await startFreeSession(repo, branch, path, profile || null, fskill, `wt:${path}`)
+      try {
+        const prs = await ghJson(`${GH} pr list --repo ${sq(repo)} --head ${sq(branch)} --json number --limit 1`)
+        const n = Array.isArray(prs) && prs[0] ? prs[0].number : null
+        if (Number.isSafeInteger(n)) {
+          const sid = readSessionMap()[`wt:${path}`]
+          if (sid && pluginCtx) {
+            const map = readSessionMap()
+            map[`${repo}#${n}`] = sid
+            pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+            try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
+            host.notify?.({ kind: 'success', message: `Linked to PR #${n}.` })
+          }
+        }
+      } catch { /* nessun PR su questo branch: niente da collegare */ }
       setOpen(false)
       setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setFSkill(''); setErr('')
     } catch (e) {

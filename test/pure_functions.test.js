@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -492,4 +492,13 @@ test('attachWorktreeMtimes maps epoch output to ISO dates', () => {
 test('cardKey is unique per worktree branch', () => {
   assert.equal(cardKey({ kind: 'worktree', repo: 'o/a', branch: 'x' }), 'o/a#wt:x')
   assert.equal(cardKey({ kind: 'pr', repo: 'o/a', number: 1 }), 'o/a#1')
+})
+
+test('findWorktreeForItem matches the real PR head', () => {
+  const entries = [{ path: '/r/.w/feat-x', branch: 'feat/x' }]
+  const item = { kind: 'pr', repo: 'o/a', number: 4, title: 't', headRefName: 'feat/x', isCrossRepository: false }
+  assert.equal(findWorktreeForItem(entries, item), '/r/.w/feat-x')
+  assert.equal(findWorktreeForItem([], item), null)
+  const fork = { ...item, isCrossRepository: true }
+  assert.equal(findWorktreeForItem(entries, fork), null)
 })
