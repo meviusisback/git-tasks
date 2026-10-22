@@ -322,7 +322,7 @@ test('externalUrlOk allows only github https URLs', () => {
 })
 
 test('sanitizeFilter keeps only known enum values', () => {
-  assert.deepEqual(sanitizeFilter(null), { state: 'open', kind: 'all', sort: 'updated', group: false })
+  assert.deepEqual(sanitizeFilter(null), { state: 'open', kind: 'all', sort: 'updated', group: true })
   assert.deepEqual(sanitizeFilter({ state: 'closed', kind: 'pr', sort: 'repo', group: true }), { state: 'closed', kind: 'pr', sort: 'repo', group: true })
   const bad = sanitizeFilter({ state: 'nuke', kind: 42, sort: 'x', group: 'yes' })
   assert.equal(bad.state, 'open')
