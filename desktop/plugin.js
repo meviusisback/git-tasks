@@ -923,6 +923,7 @@ function SkillPicker({ value, onChange, label }) {
             jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse skills',
               className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
               style: { color: 'var(--ui-text-tertiary)' },
+              onClick: () => ensure(),
               children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
           ] }) }),
         open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
