@@ -1351,7 +1351,7 @@ function TasksToolbar() {
     $filter.set(next)
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
-  const refresh = () => queryClient.invalidateQueries({ queryKey: [ID, 'items'] })
+  const refresh = () => { queryClient.invalidateQueries({ queryKey: [ID, 'items'] }); queryClient.invalidateQueries({ queryKey: [ID, 'worktrees'] }) }
   return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', style: { ...MONO_STYLE, ...ST_CARD }, children: [
     jsxs('div', { className: 'flex items-center gap-1.5', children: [
       jsx('div', { className: 'min-w-0 shrink-0', style: { width: 220 }, children:
