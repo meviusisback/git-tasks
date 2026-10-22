@@ -729,7 +729,7 @@ let pluginCtx = null
 
 const $selectedRepos = atom([])
 const $cloneRoots = atom([...DEFAULT_CLONE_ROOTS])
-const $filter = atom({ state: 'open', kind: 'all', repos: [], query: '', sort: 'updated', group: false })
+const $filter = atom({ state: 'open', kind: 'all', repos: [], query: '', sort: 'updated', group: true })
 const $selectedTask = atom(null)
 
 export const MAX_SELECTED_REPOS = 50
@@ -742,7 +742,7 @@ const FILTER_ENUMS = {
 }
 
 export function sanitizeFilter(saved) {
-  const base = { state: 'open', kind: 'all', sort: 'updated', group: false }
+  const base = { state: 'open', kind: 'all', sort: 'updated', group: true }
   if (!saved || typeof saved !== 'object') return base
   const out = { ...base }
   for (const key of Object.keys(FILTER_ENUMS)) {
