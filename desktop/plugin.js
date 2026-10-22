@@ -8,7 +8,7 @@
 import {
   host, atom, useValue, useQuery, queryClient,
   Button, Badge, ScrollArea, EmptyState, ErrorState, Skeleton,
-  SearchField, SegmentedControl, Separator, Checkbox, Textarea, Input,
+  SearchField, SegmentedControl, Separator, Checkbox, Textarea, Input, Dialog, DialogContent, DialogHeader, DialogTitle,
   CopyButton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Codicon, cn, relativeTime, Tip,
 } from '@hermes/plugin-sdk'
@@ -792,7 +792,7 @@ function StartWorktreeButton({ item, linkedSid }) {
   const [err, setErr] = useState('')
   const [existingPath, setExistingPath] = useState(null)
   const [cloneRoot, setCloneRoot] = useState(null)
-  const [section, setSection] = useState(null)
+  const [dialog, setDialog] = useState(null)
   const [menu, setMenu] = useState(false)
   const [profiles, setProfiles] = useState(null)
   const [profile, setProfile] = useState('')
@@ -837,7 +837,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       map[itemRef(item)] = linkSid
       pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
       try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
-      setSection(null)
+      setDialog(null)
       host.notify?.({ kind: 'success', message: 'Session linked to this task.' })
     } catch (error) {
       fail(error)
@@ -849,7 +849,7 @@ function StartWorktreeButton({ item, linkedSid }) {
     if (e) e.stopPropagation()
     setErr('')
     setMenu(false)
-    setSection(which || 'worktree')
+    setDialog(which || 'worktree')
     if (profiles === null) {
       try { setProfiles(await listProfiles()) } catch { setProfiles([]) }
     }
@@ -914,7 +914,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       await startWorktreeSession(item, path, profile || null, skillName)
       host.notify?.({ kind: 'success', message: already ? 'Reopened existing worktree session.' : 'Worktree session opened.' })
       setExistingPath(path)
-      setSection(null)
+      setDialog(null)
     } catch (error) {
       fail(error)
       creatingRef.current = false
@@ -934,7 +934,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       await startWorktreeSession(item, path, profile || null, skillName)
       setCloneRoot(dest)
       setExistingPath(path)
-      setSection(null)
+      setDialog(null)
       host.notify?.({ kind: 'success', message: `Cloned into ${dest}. Worktree session opened.` })
     } catch (error) {
       fail(error)
@@ -949,7 +949,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       ...((profiles || []).map(p => jsx(SelectItem, { value: p, children: p }, p))),
     ] }),
   ] })
-  const setup = section !== null
+  const setup = dialog !== null
   const skillQuery = skillName.trim().toLowerCase()
   const skillMatches = skillOpen ? (skills || []).filter(n => skillMatchesQuery(n, skillName)).slice(0, 8) : []
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
@@ -969,12 +969,15 @@ function StartWorktreeButton({ item, linkedSid }) {
       jsx('button', { type: 'button', className: 'rounded-lg px-2 py-1 text-left text-[11px] font-semibold hover:bg-(--ui-bg-tertiary)', style: ST_TEXT, onClick: e => openSetup(e, 'worktree'), children: 'Start a worktree…' }),
       jsx('button', { type: 'button', className: 'rounded-lg px-2 py-1 text-left text-[11px] font-semibold hover:bg-(--ui-bg-tertiary)', style: ST_TEXT, onClick: e => openSetup(e, 'link'), children: 'Link an open session…' }),
     ] }) : null,
-    (linkedSid && !existingPath && !section) ? jsx(PBtn, {
+    (linkedSid && !existingPath && !dialog) ? jsx(PBtn, {
       kind: 'secondary', disabled: busy,
       onClick: async e => { e.stopPropagation(); try { await host.openSession(linkedSid, { intent: 'tab' }) } catch (err) { host.notify?.({ kind: 'error', message: String(err?.message || err) }) } },
       children: 'Go to session',
     }) : null,
-    (setup && !existingPath && section === 'worktree') ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
+    (setup && !existingPath) ? jsx(Dialog, { open: true, onOpenChange: o => { if (!o) setDialog(null) }, children:
+      jsx(DialogContent, { onClick: e => e.stopPropagation(), className: 'max-w-md', style: MONO_STYLE, children: [
+      jsx(DialogHeader, { children: jsx(DialogTitle, { children: dialog === 'worktree' ? `Start a worktree — ${itemRef(item)}` : `Link a session — ${itemRef(item)}` }) }),
+      (dialog === 'worktree') ? jsxs('div', { className: 'flex flex-col gap-1.5', children: [
       jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
       profileSelect,
       jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Start from' }),
@@ -1016,17 +1019,17 @@ function StartWorktreeButton({ item, linkedSid }) {
         jsx(PBtn, { kind: 'primary', disabled: busy || !targetRoot, onClick: cloneAndStart, children: 'Clone & start' }),
         jsx('span', { className: 'text-[10px]', style: ST_FAINT, children: 'Add folders in Settings → Clone folders.' }),
       ] }),
-      jsx(PBtn, { kind: 'secondary', onClick: () => setSection(null), children: 'Close' }),
-    ] }) : null,
-    (setup && !existingPath && section === 'link' && liveRows.length) ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
-        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Link an open session' }),
+      jsx(PBtn, { kind: 'secondary', onClick: () => setDialog(null), children: 'Close' }),
+    ] })
+    : jsxs('div', { className: 'flex flex-col gap-1.5', children: [
+      jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Link an open session' }),
         jsxs(Select, { value: linkSid, onValueChange: setLinkSid, children: [
           jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Pick session' }) }),
           jsxs(SelectContent, { children: liveRows.map(r => jsx(SelectItem, { value: r.session_key || r.id, children: String(r.title || r.session_key || r.id).slice(0, 60) }, r.session_key || r.id)) }),
         ] }),
         jsx(PBtn, { kind: 'secondary', disabled: busy || !linkSid, onClick: linkSession, children: 'Link session' }),
-        jsx(PBtn, { kind: 'secondary', onClick: () => setSection(null), children: 'Close' }),
-      ] }) : null,
+      ] }),
+      ] }) }) : null,
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
   ] })
 }
