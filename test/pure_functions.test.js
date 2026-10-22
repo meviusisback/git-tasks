@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -432,4 +432,10 @@ test('sessionTitleRef links plugin session titles to items', () => {
   assert.equal(sessionTitleRef('random chat'), null)
   assert.equal(sessionTitleRef(''), null)
   assert.equal(sessionTitleRef(null), null)
+})
+
+test('decodeHexDump round-trips UTF-8', () => {
+  assert.equal(decodeHexDump('48692120c3a8'), 'Hi! è')
+  assert.equal(decodeHexDump('48 69\n'), 'Hi')
+  assert.equal(decodeHexDump(''), '')
 })

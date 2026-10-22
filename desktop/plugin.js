@@ -480,6 +480,13 @@ export function scratchPath(name) {
   return `${SCRATCH_DIR_SH}/${sq(name)}`
 }
 
+export function decodeHexDump(hexStr) {
+  const clean = String(hexStr || '').replace(/\s+/g, '')
+  const bytes = []
+  for (let i = 0; i + 1 < clean.length; i += 2) bytes.push(parseInt(clean.slice(i, i + 2), 16))
+  return new TextDecoder('utf-8').decode(Uint8Array.from(bytes))
+}
+
 async function shBig(cmd) {
   const tag = `gittasks.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const dir = SCRATCH_DIR_SH
@@ -489,10 +496,7 @@ async function shBig(cmd) {
     await sh(`mkdir -p ${dir} && ${cmd} > ${raw} && od -An -v -tx1 ${raw} > ${hex}`)
     const byteLength = Number(await sh(`wc -c < ${hex}`))
     const out = await readChunksConcurrently(byteLength, off => sh(`tail -c +${off} ${hex} | head -c 3800`))
-    const hexStr = out.replace(/\s+/g, '')
-    const bytes = []
-    for (let i = 0; i + 1 < hexStr.length; i += 2) bytes.push(parseInt(hexStr.slice(i, i + 2), 16))
-    return new TextDecoder('utf-8').decode(Uint8Array.from(bytes))
+    return decodeHexDump(out)
   } finally {
     await sh(`unlink ${raw} 2>/dev/null; unlink ${hex} 2>/dev/null`).catch(() => {})
   }
@@ -544,8 +548,14 @@ export async function setItemState(item, action) {
   await sh(formatStateCmd(item, action))
 }
 
+export async function ghJsonBig(cmd) {
+  const out = await shBig(cmd)
+  if (!out) return null
+  try { return JSON.parse(out) } catch { throw new Error('gh JSON parse failed: ' + out.slice(0, 300)) }
+}
+
 export async function viewItem(item) {
-  const base = await ghJson(`${GH_PATH} ${formatViewCmd(item)}`)
+  const base = await ghJsonBig(`${GH_PATH} ${formatViewCmd(item)}`)
   if (!base || item.kind !== 'pr') return base
   try {
     const extra = await ghJson(`${GH_PATH} gh pr view ${Number(item.number)} --repo ${sq(item.repo)} --json updatedAt,labels,assignees,requestedReviewers,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeable,closedAt`)
@@ -750,7 +760,8 @@ function StartWorktreeButton({ item, linkedSid }) {
   const [err, setErr] = useState('')
   const [existingPath, setExistingPath] = useState(null)
   const [cloneRoot, setCloneRoot] = useState(null)
-  const [setup, setSetup] = useState(false)
+  const [section, setSection] = useState(null)
+  const [menu, setMenu] = useState(false)
   const [profiles, setProfiles] = useState(null)
   const [profile, setProfile] = useState('')
   const [targetRoot, setTargetRoot] = useState('')
@@ -791,7 +802,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       map[itemRef(item)] = linkSid
       pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
       try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
-      setSetup(false)
+      setSection(null)
       host.notify?.({ kind: 'success', message: 'Session linked to this task.' })
     } catch (error) {
       fail(error)
@@ -799,10 +810,11 @@ function StartWorktreeButton({ item, linkedSid }) {
     }
     setBusy(false)
   }
-  const openSetup = async e => {
-    e.stopPropagation()
+  const openSetup = async (e, which) => {
+    if (e) e.stopPropagation()
     setErr('')
-    setSetup(true)
+    setMenu(false)
+    setSection(which || 'worktree')
     if (profiles === null) {
       try { setProfiles(await listProfiles()) } catch { setProfiles([]) }
     }
@@ -864,7 +876,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       await startWorktreeSession(item, path, profile || null)
       host.notify?.({ kind: 'success', message: already ? 'Reopened existing worktree session.' : 'Worktree session opened.' })
       setExistingPath(path)
-      setSetup(false)
+      setSection(null)
     } catch (error) {
       fail(error)
       creatingRef.current = false
@@ -884,7 +896,7 @@ function StartWorktreeButton({ item, linkedSid }) {
       await startWorktreeSession(item, path, profile || null)
       setCloneRoot(dest)
       setExistingPath(path)
-      setSetup(false)
+      setSection(null)
       host.notify?.({ kind: 'success', message: `Cloned into ${dest}. Worktree session opened.` })
     } catch (error) {
       fail(error)
@@ -899,18 +911,30 @@ function StartWorktreeButton({ item, linkedSid }) {
       ...((profiles || []).map(p => jsx(SelectItem, { value: p, children: p }, p))),
     ] }),
   ] })
-  return jsxs('div', { className: 'flex flex-col gap-1', children: [
-    jsx(PBtn, {
-      kind: 'primary', className: '', disabled: busy,
-      onClick: async e => { e.stopPropagation(); if (existingPath && !setup) await openExisting(); else await openSetup(e) },
-      children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
-    }),
-    (linkedSid && !existingPath && !setup) ? jsx(PBtn, {
+  const setup = section !== null
+  return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
+    jsxs('div', { className: 'flex items-stretch gap-1', children: [
+      jsx(PBtn, {
+        kind: 'primary', className: 'flex-1', disabled: busy,
+        onClick: async e => { e.stopPropagation(); if (existingPath && !setup) await openExisting(); else await openSetup(e, 'worktree') },
+        children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
+      }),
+      (!existingPath) ? jsx(PBtn, {
+        kind: 'secondary', className: 'px-2', disabled: busy, 'aria-label': 'More actions',
+        onClick: e => { e.stopPropagation(); setErr(''); setMenu(m => !m) },
+        children: jsx(Codicon, { name: menu ? 'chevron-up' : 'chevron-down' }),
+      }) : null,
+    ]}),
+    (menu && !existingPath) ? jsxs('div', { className: 'flex flex-col gap-1 rounded-xl border p-1.5', style: ST_DEEP, children: [
+      jsx('button', { type: 'button', className: 'rounded-lg px-2 py-1 text-left text-[11px] font-semibold hover:bg-(--ui-bg-tertiary)', style: ST_TEXT, onClick: e => openSetup(e, 'worktree'), children: 'Start a worktree…' }),
+      jsx('button', { type: 'button', className: 'rounded-lg px-2 py-1 text-left text-[11px] font-semibold hover:bg-(--ui-bg-tertiary)', style: ST_TEXT, onClick: e => openSetup(e, 'link'), children: 'Link an open session…' }),
+    ] }) : null,
+    (linkedSid && !existingPath && !section) ? jsx(PBtn, {
       kind: 'secondary', disabled: busy,
       onClick: async e => { e.stopPropagation(); try { await host.openSession(linkedSid, { intent: 'tab' }) } catch (err) { host.notify?.({ kind: 'error', message: String(err?.message || err) }) } },
       children: 'Go to session',
     }) : null,
-    setup && !existingPath ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
+    (setup && !existingPath && section === 'worktree') ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
       jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
       profileSelect,
       jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Start from' }),
@@ -935,16 +959,17 @@ function StartWorktreeButton({ item, linkedSid }) {
         jsx(PBtn, { kind: 'primary', disabled: busy || !targetRoot, onClick: cloneAndStart, children: 'Clone & start' }),
         jsx('span', { className: 'text-[10px]', style: ST_FAINT, children: 'Add folders in Settings → Clone folders.' }),
       ] }),
-      (liveRows.length && !existingPath) ? jsxs('div', { className: 'flex flex-col gap-1', children: [
-        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Or link an open session' }),
+      jsx(PBtn, { kind: 'secondary', onClick: () => setSection(null), children: 'Close' }),
+    ] }) : null,
+    (setup && !existingPath && section === 'link' && liveRows.length) ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
+        jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Link an open session' }),
         jsxs(Select, { value: linkSid, onValueChange: setLinkSid, children: [
           jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Pick session' }) }),
           jsxs(SelectContent, { children: liveRows.map(r => jsx(SelectItem, { value: r.session_key || r.id, children: String(r.title || r.session_key || r.id).slice(0, 60) }, r.session_key || r.id)) }),
         ] }),
         jsx(PBtn, { kind: 'secondary', disabled: busy || !linkSid, onClick: linkSession, children: 'Link session' }),
+        jsx(PBtn, { kind: 'secondary', onClick: () => setSection(null), children: 'Close' }),
       ] }) : null,
-      jsx(PBtn, { kind: 'secondary', onClick: () => setSetup(false), children: 'Close' }),
-    ] }) : null,
     err ? jsx('div', { className: 'text-[10px] text-(--ui-text-quaternary)', children: err }) : null,
   ] })
 }
