@@ -646,20 +646,23 @@ export async function ghJsonBig(cmd) {
 }
 
 export async function viewItem(item) {
-  const base = await ghJsonBig(`${GH_PATH} ${formatViewCmd(item)}`)
-  if (!base || item.kind !== 'pr') return base
-  try {
-    const extra = await ghJson(`${GH_PATH} gh pr view ${Number(item.number)} --repo ${sq(item.repo)} --json updatedAt,labels,assignees,requestedReviewers,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeable,closedAt`)
-    return { ...base, ...(extra || {}) }
-  } catch {
-    return base
-  }
+  const [base, extra] = await Promise.all([
+    ghJsonBig(`${GH_PATH} ${formatViewCmd(item)}`),
+    item.kind === 'pr'
+      ? ghJson(`${GH_PATH} gh pr view ${Number(item.number)} --repo ${sq(item.repo)} --json updatedAt,labels,assignees,requestedReviewers,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeable,closedAt`).catch(() => null)
+      : Promise.resolve(null),
+  ])
+  return { ...(base || {}), ...(extra || {}) }
 }
 
+let clonesCache = { at: 0, data: null }
 export async function discoverLocalClones() {
+  if (clonesCache.data && Date.now() - clonesCache.at < 60_000) return clonesCache.data
   const roots = $cloneRoots.get()
   const home = await shHome()
-  return parseCloneScanOutput(await sh(buildCloneScanCommand(roots, home)))
+  const out = parseCloneScanOutput(await sh(buildCloneScanCommand(roots, home)))
+  clonesCache = { at: Date.now(), data: out }
+  return out
 }
 
 const BASEREF_SAFE = /^(?!-)[A-Za-z0-9_.\/-]+$/
@@ -931,10 +934,11 @@ function PBtn({ kind = 'secondary', className = '', style, disabled, onMouseEnte
   })
 }
 
-function StartWorktreeButton({ item, linkedSid }) {
+function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [existingPath, setExistingPath] = useState(null)
+  const [checked, setChecked] = useState(false)
   const [cloneRoot, setCloneRoot] = useState(null)
   const [dialog, setDialog] = useState(null)
   const [menu, setMenu] = useState(false)
@@ -954,16 +958,21 @@ function StartWorktreeButton({ item, linkedSid }) {
         const clones = await discoverLocalClones()
         const root = pickLocalClone(clones, item.repo)
         if (!cancelled) setCloneRoot(root)
-        if (!root) { if (!cancelled) setExistingPath(null); return }
+        if (!root) { if (!cancelled) { setExistingPath(null); setChecked(true) } return }
+        if (Array.isArray(knownWorktrees)) {
+          const scoped = knownWorktrees.filter(e => e?.path === root || String(e?.path || '').startsWith(root + '/'))
+          if (!cancelled) { setExistingPath(findWorktreeForItem(scoped, item)); setChecked(true) }
+          return
+        }
         const found = findWorktreeForItem(await listWorktrees(root), item)
-        if (!cancelled) setExistingPath(found)
+        if (!cancelled) { setExistingPath(found); setChecked(true) }
       } catch {
-        if (!cancelled) { setExistingPath(null); setCloneRoot(null) }
+        if (!cancelled) { setExistingPath(null); setCloneRoot(null); setChecked(true) }
       }
     }
     void check()
     return () => { cancelled = true }
-  }, [item.repo, item.number, item.title])
+  }, [item.repo, item.number, item.title, knownWorktrees])
   const fail = (error, done) => {
     const msg = String(error?.message || error)
     setErr(msg)
@@ -1093,9 +1102,9 @@ function StartWorktreeButton({ item, linkedSid }) {
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
     jsxs('div', { className: 'flex items-stretch gap-1', children: [
       jsx(PBtn, {
-        kind: 'primary', className: 'flex-1', disabled: busy,
+        kind: 'primary', className: 'flex-1', disabled: busy || !checked,
         onClick: async e => { e.stopPropagation(); if (existingPath && !setup) await openExisting(); else await openSetup(e, 'worktree') },
-        children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
+        children: busy ? 'Working...' : (!checked ? '…' : (existingPath ? 'Go to worktree' : 'Start a worktree')),
       }),
       (!existingPath) ? jsx(PBtn, {
         kind: 'secondary', className: 'px-2', disabled: busy, 'aria-label': 'More actions',
@@ -1160,7 +1169,7 @@ function LabelChip({ label }) {
   return jsx('span', { className: 'truncate rounded bg-(--ui-bg-tertiary) px-1 text-[9px] text-(--ui-text-tertiary)', style: { ...ST_DEEP, ...ST_MUTED }, children: label })
 }
 
-function TaskCard({ item, linked }) {
+function TaskCard({ item, linked, knownWorktrees }) {
   const [hov, setHov] = useState(false)
   const [opening, setOpening] = useState(false)
   const openTaskDetail = () => $selectedTask.set(item)
@@ -1213,7 +1222,7 @@ function TaskCard({ item, linked }) {
       jsxs('div', { className: 'flex shrink-0 flex-col items-stretch justify-center gap-1', children: [
         item.kind === 'worktree'
           ? jsx(PBtn, { kind: 'primary', disabled: opening, onClick: openWtSession, children: opening ? 'Opening…' : 'Open session' })
-          : jsx(StartWorktreeButton, { item, linkedSid: linked?.[itemRef(item)]?.sid }),
+          : jsx(StartWorktreeButton, { item, linkedSid: linked?.[itemRef(item)]?.sid, knownWorktrees }),
       ] }),
       
     ] }),
@@ -1421,8 +1430,8 @@ function TasksList() {
   }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
   return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
-    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, linked }, cardKey(item)))])
-    : rows.map(item => jsx(TaskCard, { item, linked }, cardKey(item))) }) })
+    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, linked, knownWorktrees: wq.data }, cardKey(item)))])
+    : rows.map(item => jsx(TaskCard, { item, linked, knownWorktrees: wq.data }, cardKey(item))) }) })
 }
 
 function TasksPane() {
@@ -1433,6 +1442,7 @@ function TasksPane() {
 
 function TaskDetail({ item, onClose }) {
   const detailLinked = useLinkedSessions()
+  const detailWt = useQuery({ queryKey: [ID, 'worktrees'], queryFn: fetchWorktrees, staleTime: 60_000 })
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -1473,7 +1483,7 @@ function TaskDetail({ item, onClose }) {
           jsx('div', { className: 'mt-1 text-[15px] font-semibold leading-snug text-(--ui-text-primary)', style: ST_TEXT, children: detail.title || item.title }),
         ] }),
         jsxs('div', { className: 'ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2', children: [
-          jsx(StartWorktreeButton, { item, linkedSid: detailLinked[itemRef(item)]?.sid }),
+          jsx(StartWorktreeButton, { item, linkedSid: detailLinked[itemRef(item)]?.sid, knownWorktrees: detailWt.data }),
           jsx(PBtn, { kind: 'secondary', disabled: busy,
             onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
