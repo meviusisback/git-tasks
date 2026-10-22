@@ -294,11 +294,26 @@ export function sessionTitleRef(title) {
 }
 
 export async function fetchLiveSessions() {
-  try {
-    const raw = await host.request('session.active_list', {})
+  const unwrap = raw => {
     const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
     return Array.isArray(res?.sessions) ? res.sessions : []
-  } catch { return [] }
+  }
+  const seen = new Set()
+  const out = []
+  const push = rows => { for (const r of rows) { const k = r?.session_key || r?.id; if (k && !seen.has(k)) { seen.add(k); out.push(r) } } }
+  try {
+    push(unwrap(await host.request('session.active_list', {})))
+  } catch { /* profilo corrente non disponibile */ }
+  // Le sessioni vivono sotto il profilo con cui sono state create: interroga tutti i profili.
+  try {
+    const profiles = await listProfiles()
+    const settled = await Promise.allSettled(profiles.map(p => host.request('session.active_list', { profile: p })))
+    for (const r of settled) {
+      if (r.status !== 'fulfilled') continue
+      try { push(unwrap(r.value)) } catch {}
+    }
+  } catch { /* solo profilo corrente */ }
+  return out
 }
 
 export function reviewLabel(decision) {
@@ -421,11 +436,15 @@ export function profileName(p) {
   return p?.name || p?.display_name || ''
 }
 
+let profilesCache = { at: 0, data: null }
 export async function listProfiles() {
+  if (profilesCache.data && Date.now() - profilesCache.at < 300_000) return profilesCache.data
   const raw = await host.request('profiles.list', {})
   const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
   const rows = Array.isArray(res?.profiles) ? res.profiles : []
-  return rows.map(profileName).filter(Boolean)
+  const out = rows.map(profileName).filter(Boolean)
+  profilesCache = { at: Date.now(), data: out }
+  return out
 }
 
 // Dove clonare un repo mancante: radice scelta + nome repo, con ~ espansa.
