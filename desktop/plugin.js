@@ -1349,7 +1349,7 @@ function TasksToolbar() {
         jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
           options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
       }),
-      jsx('div', { className: 'min-w-0 shrink-0', style: { width: 280 }, children:
+      jsx('div', { className: 'min-w-0 shrink-0', style: { width: 340 }, children:
         jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full bg-(--ui-bg-secondary)',
           options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
