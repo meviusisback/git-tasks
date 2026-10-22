@@ -457,7 +457,7 @@ test('parseSkillNames extracts and dedupes skill names', () => {
 test('skillMatchesQuery tolerates spaces and dashes', () => {
   assert.equal(skillMatchesQuery('security-audit', 'security audit'), true)
   assert.equal(skillMatchesQuery('security-audit', 'secu'), true)
-  assert.equal(skillMatchesQuery('security-audit', 'security-audit'), false)
+  assert.equal(skillMatchesQuery('security-audit', 'security-audit'), true)
   assert.equal(skillMatchesQuery('foo', ''), true)
   assert.equal(skillMatchesQuery('foo', 'zzz'), false)
 })

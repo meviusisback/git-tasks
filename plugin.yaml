@@ -5,7 +5,7 @@ manifest_version: 1
 requires_hermes: ">=0.21.1"
 author: Alberto
 license: MIT
-capabilities: []
+capabilities: [shell.exec, session.create, session.active_list, profiles.list, openSession, storage, os.openExternal]
 kind: standalone
 requires_env: []
 python_dependencies: []

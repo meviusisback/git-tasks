@@ -13,6 +13,9 @@ A Hermes Desktop plugin that shows GitHub **issues and pull requests from all yo
 - **Missing clone?** If the repo isn’t on disk, the plugin offers to `gh repo clone` it into one of your folders and keeps going.
 - **Review actions.** Approve PRs, close/reopen issues and PRs, merge (merge / squash / rebase with confirm), comment — all without leaving Hermes.
 - **CI at a glance.** A dot on each PR card: green (checks passing), red (failing), yellow (running).
+- **Live session presence.** Cards linked to a session show a status chip (working / waiting for input / idle / ended), refreshed every 10 seconds. A **Go to session** button jumps straight to it; you can also link any open session manually.
+- **Skill on start.** Optionally name a skill when creating the worktree — it is pasted into the new session input right after the issue/PR ref, ready to run.
+- **Centered setup dialog, manual refresh, parallel loading.** Worktree setup opens in a centered dialog; a refresh button reloads the list on demand; repos load in parallel.
 
 ## Requirements
 
