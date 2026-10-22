@@ -717,7 +717,10 @@ function useLinkedSessions() {
 function SessionDot({ presence }) {
   if (!presence) return null
   const fill = presence.tone === 'gone' ? 'var(--ui-text-quaternary)' : (SESSION_DOT_FILL[presence.tone] || 'var(--ui-text-quaternary)')
-  return jsx('span', { style: { width: 7, height: 7, borderRadius: 9999, backgroundColor: fill, display: 'inline-block', flexShrink: 0 }, title: presence.label })
+  return jsxs('span', { className: 'inline-flex shrink-0 items-center gap-1', title: presence.label, children: [
+    jsx('span', { style: { width: 7, height: 7, borderRadius: 9999, backgroundColor: fill, display: 'inline-block', flexShrink: 0 } }),
+    jsx('span', { className: 'text-[10px]', style: ST_MUTED, children: presence.label }),
+  ] })
 }
 
 function useRepoItems() {
