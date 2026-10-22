@@ -907,11 +907,13 @@ function SkillPicker({ value, onChange, label }) {
   const ensure = () => { if (skills === null) { listSkills().then(setSkills).catch(() => setSkills([])) } }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `${label || 'Skill on start (optional)'}${Array.isArray(skills) ? ` — ${skills.length} loaded` : ''}` }),
-    jsxs('div', { className: 'flex items-stretch gap-1', children: [
-      jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 flex-1 text-[11px]',
+    jsxs('div', { className: 'relative', children: [
+      jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 w-full pr-8 text-[11px]',
         onChange: e => { onChange(e.target.value); setOpen(true) },
         onFocus: () => { ensure(); setOpen(true) } }),
-      jsx(PBtn, { kind: 'secondary', className: 'px-2', 'aria-label': 'Browse skills',
+      jsx('button', { type: 'button', 'aria-label': 'Browse skills',
+        className: 'absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
+        style: { color: 'var(--ui-text-tertiary)' },
         onClick: () => { ensure(); setOpen(o => !o) },
         children: jsx(Codicon, { name: open ? 'chevron-up' : 'chevron-down' }) }),
     ] }),
@@ -928,11 +930,13 @@ function FilterCombo({ value, onChange, options, placeholder }) {
   const [open, setOpen] = useState(false)
   const matches = open ? (options || []).filter(n => skillMatchesQuery(n, value)).slice(0, 8) : []
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
-    jsxs('div', { className: 'flex items-stretch gap-1', children: [
-      jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 flex-1 text-[11px]',
+    jsxs('div', { className: 'relative', children: [
+      jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 w-full pr-8 text-[11px]',
         onChange: e => { onChange(e.target.value); setOpen(true) },
         onFocus: () => setOpen(true) }),
-      jsx(PBtn, { kind: 'secondary', className: 'px-2', 'aria-label': 'Browse options',
+      jsx('button', { type: 'button', 'aria-label': 'Browse options',
+        className: 'absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md',
+        style: { color: 'var(--ui-text-tertiary)' },
         onClick: () => setOpen(o => !o),
         children: jsx(Codicon, { name: open ? 'chevron-up' : 'chevron-down' }) }),
     ] }),
