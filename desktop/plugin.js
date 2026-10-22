@@ -801,7 +801,7 @@ function LabelChip({ label }) {
 
 function TaskCard({ item }) {
   const [hov, setHov] = useState(false)
-  const openTaskDetail = () => $selectedTask.set(itemRef(item))
+  const openTaskDetail = () => $selectedTask.set(item)
   return jsxs('div', { className: 'group cursor-pointer rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-elevated) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD, cursor: 'pointer', borderColor: hov ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)', filter: hov ? 'brightness(1.04)' : 'none' }, onClick: () => openTaskDetail(item), onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), children: [
     jsxs('div', { className: 'flex flex-wrap items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
