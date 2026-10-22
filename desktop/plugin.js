@@ -381,6 +381,20 @@ export function formatWorktreeRemoveCmd(repoRoot, branch) {
   return `git -C ${sq(repoRoot)} worktree remove ${sq(dir)}`
 }
 
+export function parseSkillNames(text) {
+  const out = []
+  for (const line of String(text || '').split('\n')) {
+    const m = line.match(/^\s*name:\s*(.+?)\s*$/)
+    if (m) out.push(m[1].replace(/^['"]|['"]$/g, ''))
+  }
+  return [...new Set(out)].sort()
+}
+
+export async function listSkills() {
+  const cmd = 'find "$HOME"/.hermes/skills "$HOME"/.hermes/profiles -path \'*skills*\' -name SKILL.md 2>/dev/null -exec grep -h -m1 \'^name:\' {} +'
+  return parseSkillNames(await sh(cmd))
+}
+
 export function profileName(p) {
   return p?.name || p?.display_name || ''
 }
@@ -774,6 +788,8 @@ function StartWorktreeButton({ item, linkedSid }) {
   const [baseRef, setBaseRef] = useState('')
   const [linkSid, setLinkSid] = useState('')
   const [skillName, setSkillName] = useState('')
+  const [skills, setSkills] = useState(null)
+  const [skillOpen, setSkillOpen] = useState(false)
   const liveRows = useLiveRows()
   const creatingRef = { current: false }
   const roots = useValue($cloneRoots)
@@ -826,6 +842,9 @@ function StartWorktreeButton({ item, linkedSid }) {
       try { setProfiles(await listProfiles()) } catch { setProfiles([]) }
     }
     if (!targetRoot) setTargetRoot((roots && roots[0]) || '~/repo')
+    if (skills === null) {
+      try { setSkills(await listSkills()) } catch { setSkills([]) }
+    }
   }
   const openExisting = async () => {
     setBusy(true); setErr('')
@@ -919,6 +938,8 @@ function StartWorktreeButton({ item, linkedSid }) {
     ] }),
   ] })
   const setup = section !== null
+  const skillQuery = skillName.trim().toLowerCase()
+  const skillMatches = (skillOpen && skillQuery) ? (skills || []).filter(n => n.toLowerCase().includes(skillQuery) && n !== skillName.trim()).slice(0, 8) : []
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
     jsxs('div', { className: 'flex items-stretch gap-1', children: [
       jsx(PBtn, {
@@ -956,7 +977,18 @@ function StartWorktreeButton({ item, linkedSid }) {
       cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Skill on start (optional)' }),
-        jsx(Input, { value: skillName, onChange: e => setSkillName(e.target.value), placeholder: 'e.g. security-audit', className: 'h-7 text-[11px]' }),
+        jsxs('div', { className: 'relative', children: [
+          jsx(Input, { value: skillName, placeholder: 'type to search skills…', className: 'h-7 text-[11px]',
+            onChange: e => { setSkillName(e.target.value); setSkillOpen(true) },
+            onFocus: () => setSkillOpen(true),
+            onBlur: () => setTimeout(() => setSkillOpen(false), 120) }),
+          skillMatches.length ? jsxs('div', {
+            className: 'absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-lg border p-1', style: { ...ST_CARD, backgroundColor: 'var(--ui-bg-elevated)' },
+            children: skillMatches.map(n =>
+              jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)',
+                onMouseDown: e => { e.preventDefault(); setSkillName(n); setSkillOpen(false) }, children: n })),
+          }) : null,
+        ] }),
         jsx(PBtn, { kind: 'primary', disabled: busy, onClick: confirmNew, children: 'Create worktree' }),
       ] }) : jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `No local clone of ${item.repo}. Clone into:` }),

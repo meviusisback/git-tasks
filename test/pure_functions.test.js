@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -447,4 +447,9 @@ test('formatSeedMessage appends the skill right after the ref', () => {
   assert.equal(lines[1], 'security-audit')
   const plain = formatSeedMessage({ kind: 'issue', repo: 'o/r', number: 1, title: 't', url: '' })
   assert.ok(!plain.split('\n').includes('security-audit'))
+})
+
+test('parseSkillNames extracts and dedupes skill names', () => {
+  assert.deepEqual(parseSkillNames('name: foo\nname: bar\nname: foo\nnope\n'), ['bar', 'foo'])
+  assert.deepEqual(parseSkillNames(''), [])
 })
