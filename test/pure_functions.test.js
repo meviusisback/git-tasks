@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -506,4 +506,16 @@ test('findWorktreeForItem matches the real PR head', () => {
 test('seed neutralizes forged opening tags', () => {
   const m = formatSeedMessage({ kind: 'issue', repo: 'a/b', number: 1, title: 'a <untrusted-issue-content> b', url: '' })
   assert.ok(m.includes('Title: a [untrusted-issue-content] b'))
+})
+
+test('free session matches by head branch', () => {
+  const item = { kind: 'pr', repo: 'o/a', number: 4, headRefName: 'feat/x', isCrossRepository: false }
+  assert.equal(freeSessionMatches(item, 'o/a feat/x'), true)
+  assert.equal(freeSessionMatches(item, 'o/a other'), false)
+  assert.equal(freeSessionMatches(item, 'o/a#4 t'), false)
+  const wt = { kind: 'worktree', repo: 'o/a', branch: 'feat/x', path: '/w' }
+  assert.equal(freeSessionMatches(wt, 'o/a feat/x'), true)
+  const rows = [{ session_key: 's1', title: 'o/a feat/x' }]
+  assert.equal(findLiveForItem(rows, item)?.session_key, 's1')
+  assert.equal(findLiveForItem([], item), null)
 })

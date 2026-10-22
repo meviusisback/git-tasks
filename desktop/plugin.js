@@ -288,6 +288,32 @@ export const SESSION_DOT_FILL = {
 }
 
 // Le sessioni create dal plugin hanno titolo "owner/repo#123 ...": collegamento senza worktree.
+// Sessioni libere: titolo "owner/repo branch". Si collegano per branch head.
+export function sessionFreeRef(title) {
+  const m = String(title || '').match(/^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+) (\S+)\s*$/)
+  if (!m || m[2].includes('#')) return null
+  return { repo: m[1], branch: m[2] }
+}
+
+// Prima sessione viva che tratta l'item: titolo "repo#N" oppure branch libero.
+export function findLiveForItem(liveRows, item) {
+  if (!item) return null
+  const ref = item.kind === 'worktree' ? null : itemRef(item)
+  for (const r of (liveRows || [])) {
+    if (ref && sessionTitleRef(r?.title) === ref) return r
+    if (freeSessionMatches(item, r?.title)) return r
+  }
+  return null
+}
+
+export function freeSessionMatches(item, title) {
+  const f = sessionFreeRef(title)
+  if (!f || f.repo !== item?.repo) return false
+  if (item.kind === 'pr') return !item.isCrossRepository && !!item.headRefName && f.branch === item.headRefName
+  if (item.kind === 'worktree') return f.branch === item.branch
+  return f.branch === deriveBranchName(item)
+}
+
 export function sessionTitleRef(title) {
   const m = String(title || '').match(/^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)\b/)
   return m ? `${m[1]}#${m[2]}` : null
@@ -858,6 +884,7 @@ function useLinkedSessions() {
       const ref = sessionTitleRef(r?.title)
       if (ref && !out[ref]?.sid) out[ref] = { presence: sessionPresence(r), sid: r.session_key || r.id }
     }
+    // Match per branch libero (sessioni "repo branch", anche senza #N nel titolo).
     return out
   }, [rows, version])
 }
@@ -1049,8 +1076,8 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
         id = null
       }
       if (!id) {
-        const titled = (liveRows || []).find(r => sessionTitleRef(r?.title) === itemRef(item))
-        if (titled) id = titled.session_key || titled.id || null
+        const liveHit = findLiveForItem(liveRows, item)
+        if (liveHit) id = liveHit.session_key || liveHit.id || null
       }
       const persist = () => {
         try {
@@ -1213,6 +1240,7 @@ function LabelChip({ label }) {
 }
 
 function TaskCard({ item, linked, knownWorktrees }) {
+  const cardLive = useLiveRows()
   const [hov, setHov] = useState(false)
   const [opening, setOpening] = useState(false)
   const openingRef = useRef(false)
@@ -1225,9 +1253,19 @@ function TaskCard({ item, linked, knownWorktrees }) {
     try {
       const ref = `wt:${item.path}`
       const link = linked?.[ref]
-      if (link?.sid && link.presence?.tone !== 'gone') {
+      const liveHit = (!link?.sid) ? findLiveForItem(cardLive, item) : null
+      const sid = (link?.sid && link.presence?.tone !== 'gone') ? link.sid : (liveHit ? (liveHit.session_key || liveHit.id) : null)
+      if (liveHit && !link?.sid && pluginCtx) {
         try {
-          await host.openSession(link.sid, { intent: 'tab' })
+          const map = readSessionMap()
+          map[ref] = liveHit.session_key || liveHit.id
+          pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+          try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
+        } catch {}
+      }
+      if (sid) {
+        try {
+          await host.openSession(sid, { intent: 'tab' })
         } catch (openErr) {
           try {
             const map = readSessionMap()
