@@ -1316,18 +1316,16 @@ function TasksToolbar() {
       jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'flex-1' }),
       jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
     ] }),
-    jsx('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
-      jsx('div', { style: { width: '100%', maxWidth: 300 }, children:
+    jsxs('div', { className: 'flex items-stretch justify-center gap-1.5', children: [
+      jsx('div', { className: 'min-w-0 flex-1', style: { maxWidth: 300 }, children:
         jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
           options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
       }),
-    }),
-    jsxs('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
-      jsx('div', { style: { width: '100%', maxWidth: 340 }, children:
+      jsx('div', { className: 'min-w-0 flex-1', style: { maxWidth: 340 }, children:
         jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full',
           options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
-    }),
+    ] }),
     jsxs('div', { className: 'flex flex-wrap items-center gap-1.5', children: [
       repos.length > 1 ? jsx('div', { className: 'min-w-0 flex-1', children:
         jsx(RepoFilterRow, { repos, selected: filter.repos, onChange: v => set({ repos: v }) }) }) : null,
