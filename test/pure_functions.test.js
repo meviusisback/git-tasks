@@ -416,3 +416,12 @@ test('sessionPresence maps live status to dots', () => {
   assert.deepEqual(sessionPresence({ status: 'idle' }), { tone: 'idle', label: 'session idle' })
   assert.equal(sessionPresence({ status: 'starting' }).tone, 'starting')
 })
+
+test('parseWorktreeList and findWorktree match suffixed branches', () => {
+  const out = 'worktree /r/.worktrees/a\nHEAD x\nbranch refs/heads/pr/1-a\n\nworktree /r/.worktrees/b-mvjjr3w3\nHEAD y\nbranch refs/heads/pr/6-b-mvjjr3w3\n'
+  const list = parseWorktreeList(out)
+  assert.equal(list.length, 2)
+  assert.equal(findWorktree(list, 'pr/1-a'), '/r/.worktrees/a')
+  assert.equal(findWorktree(list, 'pr/6-b'), '/r/.worktrees/b-mvjjr3w3')
+  assert.equal(findWorktree(list, 'pr/9-x'), null)
+})

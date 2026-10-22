@@ -390,6 +390,35 @@ export function cloneTargetPath(root, repo, home) {
   return `${expandRoot(root, home)}/${name}`
 }
 
+// Elenca i worktree di un clone: [{ path, branch }].
+export function parseWorktreeList(text) {
+  const out = []
+  let cur = null
+  for (const line of String(text || '').split('\n')) {
+    const w = line.match(/^worktree (.+)$/)
+    if (w) { cur = { path: w[1].trim(), branch: '' }; out.push(cur); continue }
+    const b = line.match(/^branch refs\/heads\/(.+)$/)
+    if (b && cur) cur.branch = b[1].trim()
+  }
+  return out.filter(e => e.path)
+}
+
+// Trova il worktree di un branch: esatto oppure con suffisso anti-collisione.
+export function findWorktree(entries, branch) {
+  if (!branch) return null
+  const exact = entries.find(e => e.branch === branch)
+  if (exact) return exact.path
+  const suffixed = entries.find(e => e.branch.startsWith(branch + '-'))
+  return suffixed ? suffixed.path : null
+}
+
+async function listWorktrees(repoRoot) {
+  try {
+    const out = await sh(`git -C ${sq(repoRoot)} worktree list --porcelain`)
+    return parseWorktreeList(out)
+  } catch { return [] }
+}
+
 export function pickLocalClone(clones, repo) {
   const want = String(repo || '').toLowerCase()
   if (!want) return null
@@ -721,10 +750,8 @@ function StartWorktreeButton({ item }) {
         const root = pickLocalClone(clones, item.repo)
         if (!cancelled) setCloneRoot(root)
         if (!root) { if (!cancelled) setExistingPath(null); return }
-        const slug = deriveBranchName(item).replace(/\//g, '-')
-        const path = `${root}/.worktrees/${slug}`
-        const yes = await sh(`[ -d ${sq(path)} ] && echo yes || echo no`)
-        if (!cancelled) setExistingPath(yes === 'yes' ? path : null)
+        const found = findWorktree(await listWorktrees(root), deriveBranchName(item))
+        if (!cancelled) setExistingPath(found)
       } catch {
         if (!cancelled) { setExistingPath(null); setCloneRoot(null) }
       }
@@ -792,12 +819,17 @@ function StartWorktreeButton({ item }) {
       const clones = await discoverLocalClones()
       const root = pickLocalClone(clones, item.repo)
       if (!root) throw new Error('Clone not found. Use the clone option below.')
-      const slug = deriveBranchName(item).replace(/\//g, '-')
-      const reuse = `${root}/.worktrees/${slug}`
-      const already = await sh(`[ -d ${sq(reuse)} ] && echo yes || echo no`)
-      const path = already === 'yes' ? reuse : await createWorktree(root, deriveBranchName(item), baseRef)
+      const branch = deriveBranchName(item)
+      const slug = branch.replace(/\//g, '-')
+      const existing = findWorktree(await listWorktrees(root), branch) || await (async () => {
+        const dir = `${root}/.worktrees/${slug}`
+        const yes = await sh(`[ -d ${sq(dir)} ] && echo yes || echo no`)
+        return yes === 'yes' ? dir : null
+      })()
+      const path = existing || await createWorktree(root, branch, baseRef)
+      const already = !!existing
       await startWorktreeSession(item, path, profile || null)
-      host.notify?.({ kind: 'success', message: already === 'yes' ? 'Reopened existing worktree session.' : 'Worktree session opened.' })
+      host.notify?.({ kind: 'success', message: already ? 'Reopened existing worktree session.' : 'Worktree session opened.' })
       setExistingPath(path)
       setSetup(false)
     } catch (error) {
