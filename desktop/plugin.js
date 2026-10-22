@@ -1214,7 +1214,6 @@ function TasksToolbar() {
     jsxs('div', { className: 'flex items-center gap-1.5', children: [
       jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', className: 'flex-1' }),
       jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
-      jsx(NewWorktreeButton, {}),
     ] }),
     jsx('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
       jsx('div', { style: { width: '100%', maxWidth: 300 }, children:
@@ -1513,6 +1512,7 @@ function RepoPicker() {
       jsx('span', { className: 'text-[11px] font-medium text-(--ui-text-tertiary)', children: 'Repositories' }),
       jsx(PBtn, { kind: 'secondary', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
       selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
+      jsx('div', { className: 'ml-auto', children: jsx(NewWorktreeButton, {}) }),
     ] }),
     open ? jsxs('div', { className: 'mt-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-2 text-(--ui-text-primary) shadow-lg', children: [
         jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
