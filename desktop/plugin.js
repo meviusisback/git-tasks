@@ -1321,7 +1321,7 @@ function TasksToolbar() {
         jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full bg-(--ui-bg-secondary)',
           options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
-      jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', containerClassName: 'w-52 shrink-0' }),
+      jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', containerClassName: 'ml-auto w-52 shrink-0' }),
       jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
     ] }),
     jsxs('div', { className: 'flex flex-wrap items-center gap-1.5', children: [
