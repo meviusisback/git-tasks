@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -480,4 +480,11 @@ test('worktreeToItems skips the main checkout', () => {
   assert.equal(items[0].kind, 'worktree')
   assert.equal(items[0].repo, 'o/a')
   assert.equal(items[0].branch, 'fix/1')
+})
+
+test('attachWorktreeMtimes maps epoch output to ISO dates', () => {
+  const items = [{ path: '/r/a' }, { path: '/r/b' }]
+  attachWorktreeMtimes(items, '1700000000\t/r/a\nnot-a-line\n')
+  assert.ok(items[0].updatedAt.startsWith('2023-11-14'))
+  assert.equal(items[1].updatedAt, undefined)
 })

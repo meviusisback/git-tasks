@@ -554,10 +554,30 @@ export function worktreeToItems(clones, lists) {
   return items
 }
 
+export function attachWorktreeMtimes(items, stdout) {
+  const mtimes = {}
+  for (const line of String(stdout || '').split('\n')) {
+    const m = line.match(/^(\d+)\t(.+)$/)
+    if (m) mtimes[m[2]] = new Date(Number(m[1]) * 1000).toISOString()
+  }
+  for (const it of (items || [])) {
+    if (it?.path && mtimes[it.path]) it.updatedAt = mtimes[it.path]
+  }
+  return items
+}
+
 export async function fetchWorktrees() {
   const clones = await discoverLocalClones()
   const settled = await Promise.allSettled(clones.map(c => listWorktrees(c.path)))
-  return worktreeToItems(clones, settled.map(r => r.status === 'fulfilled' ? r.value : []))
+  const items = worktreeToItems(clones, settled.map(r => r.status === 'fulfilled' ? r.value : []))
+  try {
+    const paths = [...new Set(items.map(i => i.path).filter(Boolean))]
+    if (paths.length) {
+      const out = await sh(`stat -c '%Y\t%n' ${paths.map(p => sq(p)).join(' ')} 2>/dev/null`)
+      attachWorktreeMtimes(items, out)
+    }
+  } catch { /* resta l'ordine di scoperta */ }
+  return items
 }
 
 export async function fetchRepoItems(repos, opts = {}) {
@@ -647,7 +667,7 @@ export function formatFreeSeedMessage(repo, branch, skill = '') {
   return [`Work on ${repo} branch ${branch}`, ...(invoke ? [invoke] : []), '', 'Verify the branch state with `git status` and `gh` before changing code.'].join('\n')
 }
 
-export async function startFreeSession(repo, branch, worktreePath, profile = null, skill = '') {
+export async function startFreeSession(repo, branch, worktreePath, profile = null, skill = '', mapKey = null) {
   const raw = await host.request('session.create', {
     cwd: worktreePath,
     cwd_explicit: true,
@@ -662,6 +682,14 @@ export async function startFreeSession(repo, branch, worktreePath, profile = nul
   }
   await host.openSession(storedId, { intent: 'tab' })
   host.notify?.({ kind: 'success', message: `Worktree session opened on ${repo} ${branch}.` })
+  if (mapKey && pluginCtx) {
+    try {
+      const map = pluginCtx.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {}
+      map[mapKey] = storedId
+      pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+      try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
+    } catch {}
+  }
   return storedId
 }
 
@@ -1118,9 +1146,17 @@ function TaskCard({ item, linked }) {
     if (opening) return
     setOpening(true)
     try {
-      await startFreeSession(item.repo, item.branch, item.path, null)
+      const ref = `wt:${item.path}`
+      const link = linked?.[ref]
+      if (link?.sid && link.presence?.tone !== 'gone') {
+        await host.openSession(link.sid, { intent: 'tab' })
+        host.notify?.({ kind: 'success', message: 'Opened existing worktree session.' })
+      } else {
+        await startFreeSession(item.repo, item.branch, item.path, null, '', ref)
+      }
     } catch (err) {
       host.notify?.({ kind: 'error', message: String(err?.message || err) })
+    } finally {
       setOpening(false)
     }
   }
@@ -1212,7 +1248,7 @@ function NewWorktreeButton() {
         await sh(`gh repo clone ${sq(repo)} ${sq(root)}`)
       }
       const path = await createWorktree(root, branch, baseRef)
-      await startFreeSession(repo, branch, path, profile || null, fskill)
+      await startFreeSession(repo, branch, path, profile || null, fskill, `wt:${path}`)
       setOpen(false)
       setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setFSkill(''); setErr('')
     } catch (e) {
@@ -1281,13 +1317,13 @@ function TasksToolbar() {
           options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
       }),
     }),
-    jsxs('div', { className: 'flex flex-wrap items-center gap-1.5', children: [
-      jsx('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
-        jsx('div', { style: { width: '100%', maxWidth: 300 }, children:
-          jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full',
-            options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
-        }),
+    jsxs('div', { style: { display: 'flex', justifyContent: 'center', width: '100%' }, children:
+      jsx('div', { style: { width: '100%', maxWidth: 340 }, children:
+        jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full',
+          options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
+    }),
+    jsxs('div', { className: 'flex items-center justify-end gap-1.5', children: [
       jsxs(Select, { value: filter.sort, onValueChange: v => set({ sort: v }), children: [
         jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Sort' }) }),
         jsxs(SelectContent, { children: [
