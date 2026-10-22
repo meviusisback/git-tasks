@@ -425,3 +425,11 @@ test('parseWorktreeList and findWorktree match suffixed branches', () => {
   assert.equal(findWorktree(list, 'pr/6-b'), '/r/.worktrees/b-mvjjr3w3')
   assert.equal(findWorktree(list, 'pr/9-x'), null)
 })
+
+test('sessionTitleRef links plugin session titles to items', () => {
+  assert.equal(sessionTitleRef('o/r#12 fix login'), 'o/r#12')
+  assert.equal(sessionTitleRef('o/r#12'), 'o/r#12')
+  assert.equal(sessionTitleRef('random chat'), null)
+  assert.equal(sessionTitleRef(''), null)
+  assert.equal(sessionTitleRef(null), null)
+})

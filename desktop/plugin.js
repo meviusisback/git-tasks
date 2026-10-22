@@ -280,6 +280,12 @@ export const SESSION_DOT_FILL = {
   idle: 'var(--ui-text-quaternary)',
 }
 
+// Le sessioni create dal plugin hanno titolo "owner/repo#123 ...": collegamento senza worktree.
+export function sessionTitleRef(title) {
+  const m = String(title || '').match(/^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)\b/)
+  return m ? `${m[1]}#${m[2]}` : null
+}
+
 export async function fetchLiveSessions() {
   try {
     const raw = await host.request('session.active_list', {})
@@ -664,7 +670,7 @@ function readSessionMap() {
   try { return pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {} } catch { return {} }
 }
 
-function useSessionDots() {
+function useLinkedSessions() {
   const version = useValue($sessionMapVersion)
   const live = useQuery({
     queryKey: [ID, 'live', version],
@@ -680,12 +686,16 @@ function useSessionDots() {
       if (r?.id) byId[r.id] = r
     }
     const map = readSessionMap()
-    const dots = {}
+    const out = {}
     for (const ref of Object.keys(map)) {
       const row = byId[map[ref]]
-      dots[ref] = row ? sessionPresence(row) : { tone: 'gone', label: 'session ended' }
+      out[ref] = row ? { presence: sessionPresence(row), sid: map[ref] } : { presence: { tone: 'gone', label: 'session ended' }, sid: null }
     }
-    return dots
+    for (const r of rows) {
+      const ref = sessionTitleRef(r?.title)
+      if (ref && !out[ref]?.sid) out[ref] = { presence: sessionPresence(r), sid: r.session_key || r.id }
+    }
+    return out
   }, [live.data, version])
 }
 
@@ -730,7 +740,7 @@ function PBtn({ kind = 'secondary', className = '', style, disabled, onMouseEnte
   })
 }
 
-function StartWorktreeButton({ item }) {
+function StartWorktreeButton({ item, linkedSid }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [existingPath, setExistingPath] = useState(null)
@@ -872,6 +882,11 @@ function StartWorktreeButton({ item }) {
       onClick: async e => { e.stopPropagation(); if (existingPath && !setup) await openExisting(); else await openSetup(e) },
       children: busy ? 'Working...' : (existingPath ? 'Go to worktree' : 'Start a worktree'),
     }),
+    (linkedSid && !existingPath && !setup) ? jsx(PBtn, {
+      kind: 'secondary', disabled: busy,
+      onClick: async e => { e.stopPropagation(); try { await host.openSession(linkedSid, { intent: 'tab' }) } catch (err) { host.notify?.({ kind: 'error', message: String(err?.message || err) }) } },
+      children: 'Go to session',
+    }) : null,
     setup && !existingPath ? jsxs('div', { className: 'flex flex-col gap-1.5 rounded-xl border p-2', style: ST_DEEP, children: [
       jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Bot profile' }),
       profileSelect,
@@ -907,14 +922,14 @@ function LabelChip({ label }) {
   return jsx('span', { className: 'truncate rounded bg-(--ui-bg-tertiary) px-1 text-[9px] text-(--ui-text-tertiary)', style: { ...ST_DEEP, ...ST_MUTED }, children: label })
 }
 
-function TaskCard({ item, dots }) {
+function TaskCard({ item, linked }) {
   const [hov, setHov] = useState(false)
   const openTaskDetail = () => $selectedTask.set(item)
   return jsxs('div', { className: 'group cursor-pointer rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-elevated) p-3 hover:border-(--ui-accent)', style: { ...MONO_STYLE, ...ST_CARD, cursor: 'pointer', borderColor: hov ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)', filter: hov ? 'brightness(1.04)' : 'none' }, onClick: () => openTaskDetail(item), onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), children: [
     jsxs('div', { className: 'flex flex-wrap items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
         jsxs('div', { className: 'flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
-          jsx(SessionDot, { presence: dots?.[itemRef(item)] }),
+          jsx(SessionDot, { presence: linked?.[itemRef(item)]?.presence }),
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
           jsx('span', { className: 'font-semibold', style: ST_ACCENT, children: item.kind === 'pr' ? 'PR' : 'Issue' }),
           jsx('span', { className: 'font-medium break-words', style: ST_TEXT, children: item.repo }),
@@ -933,8 +948,8 @@ function TaskCard({ item, dots }) {
           ...(item.labels || []).slice(0, 3).map(l => jsx(LabelChip, { label: String(typeof l === 'string' ? l : (l?.name ?? '?')) }, String(typeof l === 'string' ? l : (l?.name ?? '?')))),
         ] }),
       ] }),
-      jsx('div', { className: 'flex shrink-0 items-center', children: [
-        jsx(StartWorktreeButton, { item }),
+      jsxs('div', { className: 'flex shrink-0 flex-col items-stretch justify-center gap-1', children: [
+        jsx(StartWorktreeButton, { item, linkedSid: linked?.[itemRef(item)]?.sid }),
       ] }),
       
     ] }),
@@ -1021,7 +1036,7 @@ function TasksList() {
   const q = useRepoItems()
   const rows = useMemo(() => sortItems(filterItems(q.data || [], filter), filter.sort), [q.data, filter])
   const grouped = filter.group ? groupByRepo(rows) : null
-  const dots = useSessionDots()
+  const linked = useLinkedSessions()
   if (!repos.length) return jsx(EmptyState, { title: 'No repositories selected', description: 'Pick repositories in Settings -> Plugins -> Git Tasks.' })
   if (q.isLoading) return jsxs('div', { className: 'space-y-2 p-3', children: [
     jsx(Skeleton, { className: 'h-12 w-full rounded-md' }),
@@ -1041,8 +1056,8 @@ function TasksList() {
   }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
   return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
-    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, dots }, itemRef(item)))])
-    : rows.map(item => jsx(TaskCard, { item, dots }, itemRef(item))) }) })
+    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, linked }, itemRef(item)))])
+    : rows.map(item => jsx(TaskCard, { item, linked }, itemRef(item))) }) })
 }
 
 function TasksPane() {
@@ -1052,7 +1067,7 @@ function TasksPane() {
 }
 
 function TaskDetail({ item, onClose }) {
-  const detailDots = useSessionDots()
+  const detailLinked = useLinkedSessions()
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -1086,13 +1101,13 @@ function TaskDetail({ item, onClose }) {
               jsx('span', { className: 'size-1.5 rounded-full', style: { background: stateColor(item.state, item.isDraft) } }),
               stateText,
             ] }),
-            jsx(SessionDot, { presence: detailDots[itemRef(item)] }),
+            jsx(SessionDot, { presence: detailLinked[itemRef(item)]?.presence }),
             jsx('span', { className: 'truncate text-[11px] font-semibold text-(--ui-accent)', style: ST_ACCENT, children: itemRef(item) }),
           ] }),
           jsx('div', { className: 'mt-1 text-[15px] font-semibold leading-snug text-(--ui-text-primary)', style: ST_TEXT, children: detail.title || item.title }),
         ] }),
         jsxs('div', { className: 'ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2', children: [
-          jsx(StartWorktreeButton, { item }),
+          jsx(StartWorktreeButton, { item, linkedSid: detailLinked[itemRef(item)]?.sid }),
           jsx(PBtn, { kind: 'secondary', disabled: busy,
             onClick: act(async () => { await setItemState(item, item.state === 'OPEN' ? 'close' : 'reopen'); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
