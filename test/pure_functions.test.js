@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -487,4 +487,9 @@ test('attachWorktreeMtimes maps epoch output to ISO dates', () => {
   attachWorktreeMtimes(items, '1700000000\t/r/a\nnot-a-line\n')
   assert.ok(items[0].updatedAt.startsWith('2023-11-14'))
   assert.equal(items[1].updatedAt, undefined)
+})
+
+test('cardKey is unique per worktree branch', () => {
+  assert.equal(cardKey({ kind: 'worktree', repo: 'o/a', branch: 'x' }), 'o/a#wt:x')
+  assert.equal(cardKey({ kind: 'pr', repo: 'o/a', number: 1 }), 'o/a#1')
 })

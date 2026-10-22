@@ -219,6 +219,11 @@ export function groupByRepo(items) {
 
 export function itemRef(item) { return `${item.repo}#${item.number}` }
 
+// Chiave React: per i worktree include il branch (itemRef e repo#0 per tutti).
+export function cardKey(item) {
+  return item?.kind === 'worktree' ? `${item.repo}#wt:${item.branch}` : itemRef(item)
+}
+
 export function deriveBranchName(item) {
   const slug = String(item?.title || '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -1384,13 +1389,13 @@ function TasksList() {
   }
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
   return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
-    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, linked }, itemRef(item)))])
-    : rows.map(item => jsx(TaskCard, { item, linked }, itemRef(item))) }) })
+    ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, linked }, cardKey(item)))])
+    : rows.map(item => jsx(TaskCard, { item, linked }, cardKey(item))) }) })
 }
 
 function TasksPane() {
   const selected = useValue($selectedTask)
-  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) }, itemRef(selected))
+  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) }, cardKey(selected))
   return jsx(TasksView, {})
 }
 
@@ -1520,7 +1525,7 @@ function TaskDetail({ item, onClose }) {
 }
 function TasksPage() {
   const selected = useValue($selectedTask)
-  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) }, itemRef(selected))
+  if (selected) return jsx(TaskDetail, { item: selected, onClose: () => $selectedTask.set(null) }, cardKey(selected))
   return jsx(TasksView, {})
 }
 
