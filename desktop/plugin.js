@@ -807,6 +807,7 @@ function TaskCard({ item }) {
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
         jsxs('div', { className: 'flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : 'issue-opened' }),
+          jsx('span', { className: 'font-semibold', style: ST_ACCENT, children: item.kind === 'pr' ? 'PR' : 'Issue' }),
           jsx('span', { className: 'font-medium break-words', style: ST_TEXT, children: item.repo }),
           jsx('span', { children: `#${item.number}` }),
           jsx('span', { className: 'ml-1 shrink-0 font-semibold', style: { color: stateColor(item.state, item.isDraft) }, children: item.isDraft ? 'draft' : item.state.toLowerCase() }),
