@@ -381,6 +381,18 @@ export function formatWorktreeRemoveCmd(repoRoot, branch) {
   return `git -C ${sq(repoRoot)} worktree remove ${sq(dir)}`
 }
 
+export function normSkill(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+export function skillMatchesQuery(name, query) {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return true
+  const n = String(name || '')
+  if (n === String(query || '').trim()) return false
+  return n.toLowerCase().includes(q) || normSkill(n).includes(normSkill(q))
+}
+
 export function parseSkillNames(text) {
   const out = []
   for (const line of String(text || '').split('\n')) {
@@ -939,7 +951,7 @@ function StartWorktreeButton({ item, linkedSid }) {
   ] })
   const setup = section !== null
   const skillQuery = skillName.trim().toLowerCase()
-  const skillMatches = skillOpen ? (skills || []).filter(n => !skillQuery || (n.toLowerCase().includes(skillQuery) && n !== skillName.trim())).slice(0, 8) : []
+  const skillMatches = skillOpen ? (skills || []).filter(n => skillMatchesQuery(n, skillName)).slice(0, 8) : []
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), children: [
     jsxs('div', { className: 'flex items-stretch gap-1', children: [
       jsx(PBtn, {
