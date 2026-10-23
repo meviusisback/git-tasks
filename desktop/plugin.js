@@ -1649,10 +1649,10 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
         children: busy ? 'Working...' : (!checked ? '…' : (existingPath ? 'Go to worktree' : 'Start a worktree')),
       }),
       (!existingPath) ? jsx(PBtn, {
-        kind: 'primary', className: 'border-l border-white/20 px-2', disabled: busy, 'aria-label': 'More actions',
+        kind: 'primary', className: 'flex items-center justify-center border-l border-white/20 px-2', disabled: busy, 'aria-label': 'More actions',
         onClick: e => { e.stopPropagation(); setErr(''); setMenu(m => !m) },
         style: { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
-        children: jsx('span', { style: { display: 'inline-block', transform: menu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }, children: jsx(Codicon, { name: 'chevron-down' }) }),
+        children: jsx('span', { style: { display: 'inline-flex', alignItems: 'center', lineHeight: 1, transform: menu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }, children: jsx(Codicon, { name: 'chevron-down' }) }),
       }) : null,
     ]}),
     (menu && !existingPath) ? jsxs('div', { className: 'flex flex-col gap-1 rounded-xl border p-1.5', style: ST_DEEP, children: [
