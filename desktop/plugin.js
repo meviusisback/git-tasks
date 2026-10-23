@@ -2022,6 +2022,7 @@ function TaskDetail({ item, onClose }) {
     queryFn: () => viewItem(item),
     staleTime: 30_000,
   })
+  const viewError = view.error ? errorText(view.error) : ''
   const act = fn => async () => {
     setBusy(true); setErr('')
     try { await fn() } catch (e) { setErr(String(e?.message || e)); host.notify?.({ kind: 'error', message: String(e?.message || e) }) }
@@ -2113,6 +2114,7 @@ function TaskDetail({ item, onClose }) {
       ] }) : null,
       jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', style: ST_CARD, children: [
         jsx('h3', { className: 'text-[10px] font-semibold uppercase tracking-wider text-(--ui-accent)', style: ST_ACCENT, children: 'Description' }),
+        viewError ? jsx('div', { className: 'mt-2 break-words text-[11px] text-red-400', children: `Detail failed: ${viewError}` }) : null,
         jsx('div', { className: 'mt-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-(--ui-text-primary)', style: ST_TEXT, children: view.isLoading ? 'Loading...' : (detail.body || 'No description.') }),
       ] }),
       comments.length ? jsxs('section', { className: 'rounded-2xl border border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-3', style: ST_CARD, children: [
