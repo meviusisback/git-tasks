@@ -1977,6 +1977,9 @@ function TasksToolbar() {
     if (pluginCtx) pluginCtx.storage.set(STORAGE_KEY_FILTER, { ...next, query: '' })
   }
   const refresh = () => { queryClient.invalidateQueries({ queryKey: [ID, 'items'] }); queryClient.invalidateQueries({ queryKey: [ID, 'worktrees'] }) }
+  const [shellDead, setShellDead] = useState(false)
+  useEffect(() => { let stop = false; shellAvailable().then(ok => { if (!stop && !ok) setShellDead(true) }).catch(() => {}); return () => { stop = true } }, [])
+  useEffect(() => { if (shellDead && $filter.get().kind === 'worktree') set({ kind: 'all' }) }, [shellDead])
   return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', style: { ...MONO_STYLE, ...ST_CARD }, children: [
     jsxs('div', { className: 'flex items-center gap-1.5', children: [
       jsx('div', { className: 'min-w-0 shrink-0', style: { width: 220 }, children:
@@ -1985,7 +1988,7 @@ function TasksToolbar() {
       }),
       jsx('div', { className: 'min-w-0 shrink-0', style: { width: 340 }, children:
         jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full bg-(--ui-bg-secondary)',
-          options: [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
+          options: shellDead ? [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }] : [{ id: 'all', label: 'All' }, { id: 'pr', label: 'PRs' }, { id: 'issue', label: 'Issues' }, { id: 'worktree', label: 'Worktrees' }] }),
       }),
       jsx(SearchField, { value: filter.query, onChange: v => set({ query: v }), placeholder: 'Search issues and PRs...', containerClassName: 'ml-auto w-52 shrink-0' }),
       jsx(PBtn, { kind: 'icon', onClick: refresh, disabled: itemsQuery.isFetching, title: 'Refresh list', 'aria-label': 'Refresh list', children: jsx(Codicon, { name: itemsQuery.isFetching ? 'loading~spin' : 'refresh' }) }),
