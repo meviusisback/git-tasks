@@ -1921,7 +1921,7 @@ function TasksList() {
     : sortItems(filterItems(q.data || [], filter), filter.sort), [q.data, wq.data, filter])
   const grouped = filter.group ? groupByRepo(rows) : null
   const linked = useLinkedSessions()
-  if (!repos.length) return jsx(EmptyState, { title: 'No repositories selected', description: 'Pick repositories in Settings -> Plugins -> Git Tasks.' })
+  if (!repos.length) return jsx(EmptyState, { title: 'No repositories selected', description: 'Pick repositories with Repositories above, or set the data source with Data source.' })
   if (q.isLoading) return jsxs('div', { className: 'space-y-2 p-3', children: [
     jsx(Skeleton, { className: 'h-12 w-full rounded-md' }),
     jsx(Skeleton, { className: 'h-12 w-full rounded-md' }),
@@ -2221,7 +2221,10 @@ function RepoPicker() {
       jsx('span', { className: 'text-[11px] font-medium text-(--ui-text-tertiary)', children: 'Repositories' }),
       jsx(PBtn, { kind: 'secondary', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
       selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
-      jsx('div', { className: 'ml-auto', children: jsx(NewWorktreeButton, {}) }),
+      jsx('div', { className: 'ml-auto flex items-center gap-1', children: [
+        jsx(PBtn, { kind: 'secondary', onClick: () => { try { host.navigate('/settings?tab=plugins&plugin=git-tasks&ppage=source') } catch {} }, children: 'Data source' }),
+        jsx(NewWorktreeButton, {}),
+      ] }),
     ] }),
     open ? jsxs('div', { className: 'mt-1 rounded-lg border border-(--ui-stroke-secondary) bg-(--ui-bg-secondary) p-2 text-(--ui-text-primary) shadow-lg', children: [
         jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter repositories...' }),
