@@ -2081,6 +2081,20 @@ function TasksPage() {
   return jsx(TasksView, {})
 }
 
+function DataSourceButton() {
+  const [open, setOpen] = useState(false)
+  const src = useValue($dataSource)
+  const label = !src?.token && (src?.mode || 'auto') !== 'gh' ? 'Set token' : `Source: ${(src?.mode || 'auto') === 'gh' ? 'gh' : (src?.mode || 'auto') === 'api' ? 'API' : 'Auto'}`
+  return jsxs('div', { children: [
+    jsx(PBtn, { kind: 'secondary', onClick: () => setOpen(true), children: label }),
+    open ? jsx(Dialog, { open: true, onOpenChange: o => { if (!o) setOpen(false) }, children:
+      jsx(DialogContent, { onClick: e => e.stopPropagation(), className: 'max-w-md', style: MONO_STYLE, children: [
+        jsx(DialogHeader, { children: jsx(DialogTitle, { children: 'Data source' }) }),
+        jsx(DataSourceSettings, {}),
+      ] }) }) : null,
+  ] })
+}
+
 function RepoSettings() {
   const repos = useValue($selectedRepos)
   const [q, setQ] = useState('')
@@ -2222,7 +2236,7 @@ function RepoPicker() {
       jsx(PBtn, { kind: 'secondary', onClick: () => setOpen(!open), children: `${selected.length} selected` }),
       selected.length > 0 ? jsx('button', { type: 'button', className: 'text-[10px] text-(--ui-text-quaternary)', onClick: () => persistRepos(pluginCtx, []), children: 'clear' }) : null,
       jsx('div', { className: 'ml-auto flex items-center gap-1', children: [
-        jsx(PBtn, { kind: 'secondary', onClick: () => { try { host.navigate('/settings?tab=plugins&plugin=git-tasks&ppage=source') } catch {} }, children: 'Data source' }),
+        jsx(DataSourceButton, {}),
         jsx(NewWorktreeButton, {}),
       ] }),
     ] }),
