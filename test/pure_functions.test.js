@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem, formatSkillInvoke, parseModelOptions, errorText, gwErrorText,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -545,4 +545,30 @@ test('errorText includes message and data', () => {
 
 test('gwErrorText prefixes the failing method', () => {
   assert.equal(gwErrorText('shell.exec', { message: 'invalid_params', data: { reason: 'invalid_params' } }), 'shell.exec: invalid_params {"reason":"invalid_params"}')
+})
+
+test('ghStateParam maps filter state to API state', () => {
+  assert.equal(ghStateParam('open'), 'open')
+  assert.equal(ghStateParam('all'), 'all')
+  assert.equal(ghStateParam('closed'), 'closed')
+  assert.equal(ghStateParam('merged'), 'closed')
+})
+test('apiRowToItem maps issue and merged PR', () => {
+  const i = apiRowToItem('o/r', { number: 1, title: 'T', state: 'open', user: { login: 'a' }, created_at: 'c', updated_at: 'u', html_url: 'h', labels: [] }, 'issue')
+  assert.equal(i.kind, 'issue')
+  assert.equal(i.state, 'OPEN')
+  const p = apiRowToItem('o/r', { number: 2, title: 'P', state: 'closed', merged_at: 'm', pull_request: {}, user: { login: 'b' }, created_at: 'c', updated_at: 'u', html_url: 'h', labels: [], head: { ref: 'f', repo: { full_name: 'o/r' } }, base: { ref: 'main', repo: { full_name: 'o/r' } } }, 'pr')
+  assert.equal(p.state, 'MERGED')
+  assert.equal(p.isCrossRepository, false)
+})
+test('agent messages contain branch, roots and untrusted block', () => {
+  const item = { repo: 'o/r', number: 7, kind: 'pr', title: 'Fix' }
+  const m = formatAgentWorktreeMessage(item, { branch: 'pr-7-x', roots: ['~/repo'], skill: 'security-audit' })
+  assert.ok(m.includes('o/r#7'))
+  assert.ok(m.includes('/security-audit'))
+  assert.ok(m.includes('git worktree add'))
+  assert.ok(m.includes('[untrusted-issue-content]'))
+  assert.ok(m.includes('<untrusted-issue-content repo='))
+  const f = formatAgentFreeMessage('o/r', 'feat/x', { roots: [] })
+  assert.ok(f.includes('feat/x'))
 })

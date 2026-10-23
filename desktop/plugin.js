@@ -21,6 +21,8 @@ export const STORAGE_KEY_REPOS = 'selectedRepos'
 export const STORAGE_KEY_FILTER = 'filter'
 export const STORAGE_KEY_WORKTREE_SESSIONS = 'worktreeSessions'
 export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
+export const STORAGE_KEY_SOURCE = 'dataSource'
+export const STORAGE_KEY_TOKEN = 'githubToken'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
 export const BUILD_TAG = 'parchment-20261017-v3'
 if (typeof console !== 'undefined') console.log('[git-tasks] build ' + BUILD_TAG)
@@ -317,6 +319,53 @@ export function freeSessionMatches(item, title) {
   if (item.kind === 'pr') return !item.isCrossRepository && !!item.headRefName && f.branch === item.headRefName
   if (item.kind === 'worktree') return f.branch === item.branch
   return f.branch === deriveBranchName(item)
+}
+
+export function formatAgentWorktreeMessage(item, opts = {}) {
+  const branch = opts.branch || deriveBranchName(item)
+  const base = opts.baseRef ? ` ${opts.baseRef}` : ''
+  const roots = (opts.roots || []).filter(Boolean)
+  const rootLines = roots.length ? roots.map(r => `  - ${r}`) : ['  - (no clone roots configured)']
+  const L = [`Work on this GitHub PR: ${itemRef(item)} ${item.title || ''}`.trim()]
+  if (opts.skill) L.push(`/${opts.skill}`)
+  L.push('', 'No shell access is available from the panel that sent this, so set up the workspace yourself:', `1. Reuse: run git worktree list and reuse the worktree on branch ${branch} if it already exists.`, `2. Otherwise create it: git fetch --prune origin && git worktree add .worktrees/${branch.replace(/\//g, '-')} -b ${branch}${base}`, '   Suggested clone roots (ask me if none fits):', ...rootLines, '3. Work in that worktree directory for everything below.', '4. Before changing code, verify the issue/PR listed above with the GitHub API or gh CLI.')
+  if (item) L.push('', `<untrusted-issue-content repo="${item.repo}" number="${Number(item.number)}" kind="${item.kind}">`, '[untrusted-issue-content]', '</untrusted-issue-content>')
+  return L.join('\n')
+}
+
+export function formatAgentFreeMessage(repo, branch, opts = {}) {
+  const roots = (opts.roots || []).filter(Boolean)
+  const rootLines = roots.length ? roots.map(r => `  - ${r}`) : ['  - (no clone roots configured)']
+  const L = [`Set up a workspace for branch ${branch} of ${repo}.`]
+  if (opts.skill) L.push(`/${opts.skill}`)
+  L.push('', 'No shell access is available from the panel that sent this, so set up the workspace yourself:', `1. Reuse: run git worktree list and reuse the worktree on branch ${branch} if it already exists.`, `2. Otherwise create it: git fetch --prune origin && git worktree add .worktrees/${branch.replace(/\//g, '-')}`, '   Suggested clone roots (ask me if none fits):', ...rootLines, '3. Work in that worktree directory for everything below.')
+  return L.join('\n')
+}
+
+export async function openAgentSession(opts = {}) {
+  const raw = await host.request('session.create', {
+    ...(opts.profile ? { profile: opts.profile } : {}),
+    ...(opts.model ? { model: opts.model, provider: opts.provider || undefined } : {}),
+    title: String(opts.title || 'Task').slice(0, 120),
+    messages: [{ role: 'user', content: opts.message }],
+  })
+  let sid = raw && typeof raw === 'object' ? (raw.sessionId ?? raw.id ?? raw.session?.id ?? raw.result?.sessionId ?? raw.result?.id) : null
+  if (!sid && raw && typeof raw === 'object') {
+    for (const v of Object.values(raw)) {
+      if (v && typeof v === 'object') { sid = v.sessionId ?? v.id ?? v.session?.id ?? null; if (sid) break }
+    }
+  }
+  if (typeof sid !== 'string' || !sid) throw new Error('no session id in session.create response')
+  if (opts.mapKey && pluginCtx) {
+    try {
+      const map = pluginCtx.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {}
+      map[opts.mapKey] = sid
+      pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
+      $sessionMapVersion.set(Date.now())
+    } catch {}
+  }
+  await host.openSession(sid, { intent: 'tab' })
+  return sid
 }
 
 export function sessionTitleRef(title) {
@@ -692,8 +741,73 @@ export async function fetchWorktrees() {
   return items
 }
 
+export function apiIssueState(row, kind) {
+  if (row?.state === 'open') return 'OPEN'
+  if (kind === 'pr' && (row?.merged_at || row?.merged)) return 'MERGED'
+  return 'CLOSED'
+}
+
+export function apiRowToItem(repo, row, kind) {
+  const labels = Array.isArray(row?.labels) ? row.labels : []
+  return {
+    kind, repo,
+    number: row.number,
+    title: row.title || '',
+    state: apiIssueState(row, kind),
+    isDraft: !!row?.draft,
+    author: row?.user?.login || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    labels,
+    url: row.html_url || '',
+    reviewDecision: '',
+    statusCheckRollup: [],
+    headRefName: row?.head?.ref || '',
+    baseRefName: row?.base?.ref || '',
+    isCrossRepository: !!(row?.head?.repo && row?.base?.repo && row.head.repo.full_name !== row.base.repo.full_name),
+  }
+}
+
+export function ghStateParam(state) {
+  return state === 'all' ? 'all' : state === 'closed' || state === 'merged' ? 'closed' : 'open'
+}
+
+export async function fetchRepoItemsApi(repos, opts = {}) {
+  const list = parseRepoList(Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : []))
+  const state = ghStateParam(opts.state || 'open')
+  const limit = 100
+  const settled = await Promise.allSettled(list.flatMap(r => [
+    ghApi(`/repos/${r}/issues?state=${state}&per_page=${limit}`).catch(() => []),
+    ghApi(`/repos/${r}/pulls?state=${state}&per_page=${limit}`).catch(() => []),
+  ]))
+  const items = []
+  settled.forEach((res, i) => {
+    if (res.status !== 'fulfilled' || !Array.isArray(res.value)) return
+    const r = list[Math.floor(i / 2)]
+    if (i % 2 === 0) {
+      for (const row of res.value) {
+        if (row?.pull_request) continue
+        items.push(apiRowToItem(r, row, 'issue'))
+      }
+    } else {
+      for (const row of res.value) items.push(apiRowToItem(r, row, 'pr'))
+    }
+  })
+  // CI dots per le PR aperte (una chiamata per head sha)
+  const prs = items.filter(it => it.kind === 'pr' && it.state === 'OPEN' && it.headRefName)
+  const checks = await Promise.allSettled(prs.map(it =>
+    ghApi(`/repos/${it.repo}/commits/${encodeURIComponent(it.headRefName)}/check-runs?per_page=50`).catch(() => null)
+  ))
+  checks.forEach((res, i) => {
+    const runs = res.status === 'fulfilled' && res.value ? (res.value.check_runs || []) : []
+    prs[i].statusCheckRollup = runs.map(c => ({ conclusion: (c.conclusion || c.status || '').toUpperCase() }))
+  })
+  return items
+}
+
 export async function fetchRepoItems(repos, opts = {}) {
   const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
+  if ((await effectiveSource()) === 'api') return fetchRepoItemsApi(repos, opts)
   const list = parseRepoList(normalized)
   // Ogni repo e indipendente: tutti in parallelo, ordine conservato; uno rotto non affonda gli altri.
   const settled = await Promise.allSettled(list.map(r => sh(buildListScript([r], { ...opts, limit: opts.limit || 15 }))))
@@ -710,12 +824,62 @@ export function errorText(e) {
   } catch { return String((e && e.message) || e).slice(0, 300) }
 }
 
+export async function setItemStateApi(item, action) {
+  const kind = item?.kind === 'pr' ? 'pr' : 'issue'
+  const want = action === 'reopen' ? 'open' : 'closed'
+  const entity = kind === 'pr' ? 'pulls' : 'issues'
+  await ghApi(`/repos/${item.repo}/${entity}/${Number(item.number)}`, { method: 'PATCH', body: { state: want } })
+}
+
+export async function approveApi(item) {
+  if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (item.kind !== 'pr') throw new Error('only pull requests can be approved')
+  await ghApi(`/repos/${item.repo}/pulls/${Number(item.number)}/reviews`, { method: 'POST', body: { event: 'APPROVE' } })
+}
+
+export async function mergeApi(item, method) {
+  if (!mergeMethodOk(method)) throw new Error(`unsupported merge method: ${method}`)
+  if (!repoOk(item.repo)) throw new Error('invalid repo')
+  await ghApi(`/repos/${item.repo}/pulls/${Number(item.number)}/merge`, { method: 'PUT', body: { merge_method: method } })
+}
+
+export async function runApprove(item) {
+  if ((await effectiveSource()) === 'api') return approveApi(item)
+  return sh(formatApproveCmd(item))
+}
+
+export async function runMerge(item, method) {
+  if ((await effectiveSource()) === 'api') return mergeApi(item, method)
+  return sh(formatMergeCmd(item, method))
+}
+
+export async function commentApi(item, text) {
+  const clean = String(text || '').trim()
+  if (!clean) throw new Error('empty comment')
+  return ghApi(`/repos/${item.repo}/issues/${Number(item.number)}/comments`, { method: 'POST', body: { body: clean } })
+}
+
+export async function findPrForBranch(repo, branch) {
+  try {
+    const rows = await ghApi(`/repos/${repo}/pulls?head=${encodeURIComponent(branch)}&state=all&per_page=5`)
+    const pr = (Array.isArray(rows) ? rows : []).find(r => r?.head?.ref === branch)
+    return pr ? pr.number : null
+  } catch { return null }
+}
+
+export async function listUserReposApi() {
+  const rows = await ghApi('/user/repos?per_page=100&affiliation=owner,collaborator,organization_member')
+  return (Array.isArray(rows) ? rows : []).map(r => ({ repo: r.full_name, private: !!r.private, updatedAt: r.updated_at || '' }))
+}
+
 export async function listUserRepos(limit = 30) {
+  if ((await effectiveSource()) === 'api') return listUserReposApi()
   const rows = await ghJson(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner`)
   return (Array.isArray(rows) ? rows : []).map(r => ({ repo: r.nameWithOwner, private: !!r.isPrivate, updatedAt: r.updatedAt || '' }))
 }
 
 export async function postComment(item, text) {
+  if ((await effectiveSource()) === 'api') return commentApi(item, text)
   const tag = `gittasks.cmt.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const dir = SCRATCH_DIR_SH
   const file = scratchPath(tag)
@@ -737,6 +901,7 @@ export async function postComment(item, text) {
 }
 
 export async function setItemState(item, action) {
+  if ((await effectiveSource()) === 'api') return setItemStateApi(item, action)
   await sh(formatStateCmd(item, action))
 }
 
@@ -744,6 +909,60 @@ export async function ghJsonBig(cmd) {
   const out = await shBig(cmd)
   if (!out) return null
   try { return JSON.parse(out) } catch { throw new Error('gh JSON parse failed: ' + out.slice(0, 300)) }
+}
+
+function apiDetailBase(repo, row, kind) {
+  return {
+    number: row.number,
+    title: row.title || '',
+    body: row.body || '',
+    state: apiIssueState(row, kind),
+    author: typeof row?.user === 'string' ? row.user : (row?.user?.login || ''),
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    url: row.html_url || '',
+    labels: row.labels || [],
+    comments: [],
+  }
+}
+
+export async function viewItemApi(item) {
+  const kind = item?.kind === 'pr' ? 'pr' : 'issue'
+  if (kind === 'issue') {
+    const [base, comments] = await Promise.all([
+      ghApi(`/repos/${item.repo}/issues/${Number(item.number)}`),
+      ghApi(`/repos/${item.repo}/issues/${Number(item.number)}/comments?per_page=100`).catch(() => []),
+    ])
+    return { ...apiDetailBase(item.repo, base, kind), comments: (Array.isArray(comments) ? comments : []).map(c => ({ author: c?.user?.login || '', body: c?.body || '', createdAt: c?.created_at || '' })) }
+  }
+  const [base, comments, reviews] = await Promise.all([
+    ghApi(`/repos/${item.repo}/pulls/${Number(item.number)}`),
+    ghApi(`/repos/${item.repo}/issues/${Number(item.number)}/comments?per_page=100`).catch(() => []),
+    ghApi(`/repos/${item.repo}/pulls/${Number(item.number)}/reviews?per_page=100`).catch(() => []),
+  ])
+  let checks = []
+  try {
+    const sha = base?.head?.sha
+    if (sha) {
+      const cr = await ghApi(`/repos/${item.repo}/commits/${sha}/check-runs?per_page=50`)
+      checks = (cr.check_runs || []).map(c => ({ conclusion: String(c.conclusion || c.status || '').toUpperCase(), status: String(c.status || ''), name: c.name || '' }))
+    }
+  } catch {}
+  const revs = Array.isArray(reviews) ? reviews : []
+  const decision = revs.some(r => r.state === 'CHANGES_REQUESTED') ? 'CHANGES_REQUESTED' : (revs.some(r => r.state === 'APPROVED') ? 'APPROVED' : '')
+  return {
+    ...apiDetailBase(item.repo, base, kind),
+    comments: (Array.isArray(comments) ? comments : []).map(c => ({ author: c?.user?.login || '', body: c?.body || '', createdAt: c?.created_at || '' })),
+    assignees: base.assignees || [],
+    requestedReviewers: base.requested_reviewers || [],
+    reviewDecision: decision,
+    statusCheckRollup: checks,
+    baseRefName: base?.base?.ref || '',
+    headRefName: base?.head?.ref || '',
+    isCrossRepository: !!(base?.head?.repo && base?.base?.repo && base.head.repo.full_name !== base.base.repo.full_name),
+    mergeable: base.mergeable,
+    closedAt: base.closed_at || '',
+  }
 }
 
 export async function viewItem(item) {
@@ -884,6 +1103,7 @@ export function loadPersisted(ctx) {
   const savedRoots = ctx.storage.get(STORAGE_KEY_CLONE_ROOTS, null)
   $cloneRoots.set(Array.isArray(savedRoots) ? parseCloneRoots(savedRoots.join('\n')).slice(0, MAX_CLONE_ROOTS) : [...DEFAULT_CLONE_ROOTS])
   $filter.set({ ...$filter.get(), ...sanitizeFilter(ctx.storage.get(STORAGE_KEY_FILTER, null)), repos: [] })
+  loadSourceSettings(ctx)
 }
 
 export function persistRepos(ctx, repos) {
@@ -909,6 +1129,55 @@ export function openTaskDetail(item) {
 }
 
 const $sessionMapVersion = atom(0)
+const $dataSource = atom({ mode: 'auto', token: '' })
+
+export function loadSourceSettings(ctx) {
+  try {
+    const store = ctx?.storage || pluginCtx?.storage
+    const saved = store ? store.get(STORAGE_KEY_SOURCE, null) : null
+    if (saved && typeof saved === 'object') $dataSource.set({ mode: saved.mode || 'auto', token: saved.token || '' })
+  } catch {}
+}
+
+let shellProbe = null
+export async function shellAvailable() {
+  if (shellProbe !== null) return shellProbe
+  try { await sh('true'); shellProbe = true } catch { shellProbe = false }
+  return shellProbe
+}
+export function resetShellProbe() { shellProbe = null }
+
+export async function effectiveSource() {
+  const pref = ($dataSource.get() || {}).mode || 'auto'
+  if (pref === 'gh' || pref === 'api') return pref
+  try {
+    return (await shellAvailable()) ? 'gh' : 'api'
+  } catch { return 'api' }
+}
+
+function apiToken() { return (($dataSource.get() || {}).token || '').trim() }
+
+export async function ghApi(path, opts = {}) {
+  const token = apiToken()
+  if (!token) throw new Error('GitHub token missing: set it in Settings → Git Tasks → Data source.')
+  const res = await fetch(`https://api.github.com${path}`, {
+    method: opts.method || 'GET',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(opts.body ? { body: JSON.stringify(opts.body) } : {}),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let detail = text.slice(0, 200)
+    try { detail = JSON.parse(text).message || detail } catch {}
+    throw new Error(`GitHub API ${res.status}: ${detail}`)
+  }
+  return text ? JSON.parse(text) : null
+}
 
 function readSessionMap() {
   try { return pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {} } catch { return {} }
@@ -1237,10 +1506,22 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     setBusy(false)
     creatingRef.current = false
   }
+  const runAgentCreate = async (message, mapKey) => {
+    await openAgentSession({ title: `${itemRef(item)} ${item.title || ''}`.trim().slice(0, 120), message, profile: profile || null, model: modelSel?.model || '', provider: modelSel?.provider || '', mapKey })
+    host.notify?.({ kind: 'success', message: 'Session opened: the agent sets up the worktree.' })
+    setDialog(null)
+  }
   const confirmNew = async () => {
     if (creatingRef.current) return
     creatingRef.current = true
     setBusy(true); setErr('')
+    if (!(await shellAvailable().catch(() => false))) {
+      try { await runAgentCreate(formatAgentWorktreeMessage(item, { branch: deriveBranchName(item), baseRef, roots, skill: skillName }), itemRef(item)) }
+      catch (error) { fail(error); creatingRef.current = false; return }
+      setBusy(false)
+      creatingRef.current = false
+      return
+    }
     try {
       const clones = await discoverLocalClones()
       const root = pickLocalClone(clones, item.repo)
@@ -1270,6 +1551,13 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     if (creatingRef.current) return
     creatingRef.current = true
     setBusy(true); setErr('')
+    if (!(await shellAvailable().catch(() => false))) {
+      try { await runAgentCreate(formatAgentWorktreeMessage(item, { branch: deriveBranchName(item), baseRef, roots, skill: skillName }), itemRef(item)) }
+      catch (error) { fail(error); creatingRef.current = false; return }
+      setBusy(false)
+      creatingRef.current = false
+      return
+    }
     try {
       await sh(`gh repo view ${sq(item.repo)} --json nameWithOwner`)
       const home = await shHome()
@@ -1498,6 +1786,14 @@ function NewWorktreeButton() {
     try {
       if (!repoOk(repo)) throw new Error('Pick a repository.')
       if (!branchOk(branch)) throw new Error('Invalid branch name (letters, numbers, . _ / -, no leading - or ..).')
+      if (!(await shellAvailable().catch(() => false))) {
+        await openAgentSession({ title: `${repo} ${branch}`.slice(0, 120), message: formatAgentFreeMessage(repo, branch, { roots, skill: fskill }), profile: profile || null, model: fmodel?.model || '', provider: fmodel?.provider || '', mapKey: `agent:${repo}#${branch}` })
+        host.notify?.({ kind: 'success', message: 'Session opened: the agent sets up the workspace.' })
+        setOpen(null)
+        setBusy(false)
+        creatingRef.current = false
+        return
+      }
       const clones = await discoverLocalClones()
       let root = pickLocalClone(clones, repo)
       if (!root) {
@@ -1703,7 +1999,7 @@ function TaskDetail({ item, onClose }) {
             children: item.state === 'OPEN' ? 'Close' : 'Reopen' }),
           item.kind === 'pr' && item.state === 'OPEN' ? (pendingApprove ? jsxs('div', { className: 'flex flex-wrap items-center gap-1', children: [
             jsx(PBtn, { kind: 'primary', disabled: busy,
-              onClick: act(async () => { await sh(formatApproveCmd(item)); setPendingApprove(false); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
+              onClick: act(async () => { await runApprove(item); setPendingApprove(false); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }),
               children: 'Confirm' }),
             jsx(PBtn, { kind: 'secondary', onClick: () => setPendingApprove(false), children: 'Cancel' }),
           ] }) : jsx(PBtn, { kind: 'secondary', disabled: busy, onClick: () => setPendingApprove(true), children: 'Approve' })) : null,
@@ -1752,7 +2048,7 @@ function TaskDetail({ item, onClose }) {
           ] }),
           pendingMerge ? jsxs('div', { className: 'flex flex-wrap items-center gap-2 rounded-xl border p-2', style: ST_DEEP, children: [
             jsx('span', { className: 'text-[11px]', style: ST_TEXT, children: `Merge this PR (${pendingMerge})? This cannot be undone.` }),
-            jsx(PBtn, { kind: 'primary', disabled: busy, onClick: act(async () => { await sh(formatMergeCmd(item, pendingMerge)); setPendingMerge(''); setMergeChoice(''); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }), children: 'Confirm merge' }),
+            jsx(PBtn, { kind: 'primary', disabled: busy, onClick: act(async () => { await runMerge(item, pendingMerge); setPendingMerge(''); setMergeChoice(''); await queryClient.invalidateQueries({ queryKey: [ID, 'items'] }) }), children: 'Confirm merge' }),
             jsx(PBtn, { kind: 'secondary', onClick: () => { setPendingMerge(''); setMergeChoice('') }, children: 'Cancel' }),
           ] }) : null,
         ] }) }),
@@ -1804,6 +2100,58 @@ function RepoSettings() {
         r.private ? jsx('span', { className: 'text-[9px] text-(--ui-text-quaternary)', children: 'private' }) : null,
       ] }))
     }),
+  ] })
+}
+
+function DataSourceSettings() {
+  const src = useValue($dataSource)
+  const [mode, setMode] = useState(src?.mode || 'auto')
+  const [token, setToken] = useState(src?.token || '')
+  const [msg, setMsg] = useState('')
+  const save = () => {
+    const clean = { mode: ['gh','api','auto'].includes(mode) ? mode : 'auto', token: String(token || '').trim() }
+    $dataSource.set(clean)
+    try { pluginCtx?.storage.set(STORAGE_KEY_SOURCE, clean) } catch {}
+    resetShellProbe()
+    setMsg('Saved. The new source applies on the next load.')
+    setTimeout(() => setMsg(''), 3000)
+  }
+  const testToken = async () => {
+    setMsg('Checking…')
+    const prev = $dataSource.get()
+    $dataSource.set({ mode: prev?.mode || 'auto', token: String(token || '').trim() })
+    try {
+      const me = await ghApi('/user')
+      setMsg(`Token OK — signed in as ${me?.login || 'unknown'}.`)
+    } catch (e) {
+      setMsg(errorText(e))
+    } finally {
+      $dataSource.set(prev)
+      setTimeout(() => setMsg(''), 4000)
+    }
+  }
+  return jsx('div', { className: 'flex flex-col gap-2', children: [
+    jsx('p', { className: 'text-[11px] leading-relaxed', style: ST_MUTED, children: 'gh CLI is the default (no token, full checks). GitHub API needs a token (classic or fine-grained, repo scope) and is the automatic fallback when the shell is unavailable. The API path cannot show review results on cards, only in the detail.' }),
+    jsxs('label', { className: 'flex flex-col gap-1 text-[11px]', style: ST_TEXT, children: [
+      'Source',
+      jsx(Select, { value: mode, onValueChange: v => setMode(v), children: [
+        jsx(SelectTrigger, { className: 'h-8 w-full rounded-md border px-3 text-[11px]', style: { ...ST_CARD, ...ST_TEXT }, children: jsx(SelectValue, { placeholder: 'Source…' }) }),
+        jsxs(SelectContent, { children: [
+          jsx(SelectItem, { value: 'auto', children: 'Auto (gh when the shell answers, API otherwise)' }),
+          jsx(SelectItem, { value: 'gh', children: 'gh CLI only' }),
+          jsx(SelectItem, { value: 'api', children: 'GitHub API only' }),
+        ] }),
+      ] }),
+    ] }),
+    jsxs('label', { className: 'flex flex-col gap-1 text-[11px]', style: ST_TEXT, children: [
+      'GitHub token (stored only in this browser)',
+      jsx(Input, { type: 'password', value: token, onChange: e => setToken(e.target.value), placeholder: 'ghp_… / github_pat_…', className: 'h-8 w-full rounded-md border px-3 text-[11px]', style: { ...ST_CARD, ...ST_TEXT } }),
+    ] }),
+    jsxs('div', { className: 'flex gap-2', children: [
+      jsx(PBtn, { kind: 'primary', onClick: save, children: 'Save' }),
+      jsx(PBtn, { kind: 'secondary', onClick: () => { void testToken() }, children: 'Test token' }),
+    ] }),
+    msg ? jsx('p', { className: 'text-[11px]', style: ST_MUTED, children: msg }) : null,
   ] })
 }
 
@@ -1917,6 +2265,7 @@ export default {
     ctx.register({ id: 'palette-open', area: PALETTE_AREA_LIT, data: { id: 'git-tasks.open', label: 'Git Tasks: Open', keywords: ['tasks', 'issues', 'prs', 'github'], run: () => host.navigate(TASKS_ROUTE) } })
     const settings = [
       { id: 'repos', title: 'Repositories', icon: 'repo', order: 60, render: () => jsx(RepoSettings, {}) },
+      { id: 'source', title: 'Data source', icon: 'sync', order: 61, render: () => jsx(DataSourceSettings, {}) },
       { id: 'clone-roots', title: 'Clone folders', icon: 'folder', order: 61, render: () => jsx(CloneRootsSettings, {}) },
     ]
     if (typeof ctx.registerSettingsPage === 'function') {
