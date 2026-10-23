@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -491,7 +491,7 @@ test('attachWorktreeMtimes maps epoch output to ISO dates', () => {
 
 test('cardKey is unique per worktree branch', () => {
   assert.equal(cardKey({ kind: 'worktree', repo: 'o/a', branch: 'x', path: '/r/x' }), 'o/a#wt:x#/r/x')
-  assert.equal(cardKey({ kind: 'pr', repo: 'o/a', number: 1 }), 'o/a#1')
+  assert.equal(cardKey({ kind: 'pr', repo: 'o/a', number: 1 }), 'o/a#pr#1')
 })
 
 test('findWorktreeForItem matches the real PR head', () => {
@@ -592,4 +592,18 @@ test('agent message keeps title out of instructions', () => {
   assert.ok(m.includes('/security-audit'))
   assert.ok(m.includes('Title: Fix /evil'))
   assert.throws(() => formatAgentWorktreeMessage(item, { branch: 'b', skill: 'a/b' }), /invalid skill name/)
+})
+
+test('session map keys include kind with legacy fallback', () => {
+  const issue = { repo: 'o/r', number: 5, kind: 'issue' }
+  const pr = { repo: 'o/r', number: 5, kind: 'pr' }
+  assert.equal(itemKey(issue), 'o/r#issue#5')
+  assert.equal(itemKey(pr), 'o/r#pr#5')
+  const map = {}
+  storeSid(map, issue, 's1')
+  storeSid(map, pr, 's2')
+  assert.equal(lookupSid(map, issue), 's1')
+  assert.equal(lookupSid(map, pr), 's2')
+  assert.equal(lookupSid({ 'o/r#5': 'old' }, issue), 'old')
+  assert.equal(lookupLinked({ 'o/r#pr#5': { sid: 'x' } }, pr)?.sid, 'x')
 })

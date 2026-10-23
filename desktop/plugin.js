@@ -22,7 +22,6 @@ export const STORAGE_KEY_FILTER = 'filter'
 export const STORAGE_KEY_WORKTREE_SESSIONS = 'worktreeSessions'
 export const STORAGE_KEY_CLONE_ROOTS = 'cloneRoots'
 export const STORAGE_KEY_SOURCE = 'dataSource'
-export const STORAGE_KEY_TOKEN = 'githubToken'
 export const DEFAULT_CLONE_ROOTS = ['~/repo', '~/repos', '~/src', '~/orca', '~/dev', '~/projects']
 export const BUILD_TAG = 'parchment-20261017-v3'
 if (typeof console !== 'undefined') console.log('[git-tasks] build ' + BUILD_TAG)
@@ -221,9 +220,26 @@ export function groupByRepo(items) {
 
 export function itemRef(item) { return `${item.repo}#${item.number}` }
 
+// Storage key per le sessioni: include il tipo (issue e PR con stesso numero non si pestano).
+// Lettura con fallback alla chiave vecchia per le mappe salvate prima.
+export function itemKey(item) {
+  return item?.kind === 'pr' || item?.kind === 'issue' ? `${item.repo}#${item.kind}#${item.number}` : itemRef(item)
+}
+export function lookupSid(map, item) {
+  if (!map || !item) return null
+  return map[itemKey(item)] || map[itemRef(item)] || null
+}
+export function storeSid(map, item, sid) {
+  map[itemKey(item)] = sid
+}
+export function lookupLinked(linked, item) {
+  if (!linked || !item) return null
+  return linked[itemKey(item)] || linked[itemRef(item)] || null
+}
+
 // Chiave React: per i worktree include il branch (itemRef e repo#0 per tutti).
 export function cardKey(item) {
-  return item?.kind === 'worktree' ? `${item.repo}#wt:${item.branch}#${item.path || ''}` : itemRef(item)
+  return item?.kind === 'worktree' ? `${item.repo}#wt:${item.branch}#${item.path || ''}` : itemKey(item)
 }
 
 export function deriveBranchName(item) {
@@ -849,6 +865,8 @@ export function errorText(e) {
 }
 
 export async function setItemStateApi(item, action) {
+  if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (!numOk(item.number)) throw new Error('invalid number')
   const kind = item?.kind === 'pr' ? 'pr' : 'issue'
   const want = action === 'reopen' ? 'open' : 'closed'
   const entity = kind === 'pr' ? 'pulls' : 'issues'
@@ -878,12 +896,15 @@ export async function runMerge(item, method) {
 }
 
 export async function commentApi(item, text) {
+  if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (!numOk(item.number)) throw new Error('invalid number')
   const clean = String(text || '').trim()
   if (!clean) throw new Error('empty comment')
   return ghApi(`/repos/${item.repo}/issues/${Number(item.number)}/comments`, { method: 'POST', body: { body: clean } })
 }
 
 export async function findPrForBranch(repo, branch) {
+  if (!repoOk(repo)) throw new Error('invalid repo')
   try {
     const rows = await ghApi(`/repos/${repo}/pulls?head=${encodeURIComponent(branch)}&state=all&per_page=5`)
     const pr = (Array.isArray(rows) ? rows : []).find(r => r?.head?.ref === branch)
@@ -951,6 +972,8 @@ function apiDetailBase(repo, row, kind) {
 }
 
 export async function viewItemApi(item) {
+  if (!repoOk(item.repo)) throw new Error('invalid repo')
+  if (!numOk(item.number)) throw new Error('invalid number')
   const kind = item?.kind === 'pr' ? 'pr' : 'issue'
   if (kind === 'issue') {
     const [base, comments] = await Promise.all([
@@ -968,7 +991,7 @@ export async function viewItemApi(item) {
   try {
     const sha = base?.head?.sha
     if (sha) {
-      const cr = await ghApi(`/repos/${item.repo}/commits/${sha}/check-runs?per_page=50`)
+      const cr = await ghApi(`/repos/${item.repo}/commits/${encodeURIComponent(sha)}/check-runs?per_page=50`)
       checks = (cr.check_runs || []).map(c => ({ conclusion: String(c.conclusion || c.status || '').toUpperCase(), status: String(c.status || ''), name: c.name || '' }))
     }
   } catch {}
@@ -1087,7 +1110,7 @@ export async function startWorktreeSession(item, worktreePath, profile = null, s
   }
   if (pluginCtx) {
     const map = pluginCtx.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {}
-    map[itemRef(item)] = storedId
+    storeSid(map, item, storedId)
     pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
     try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
   }
@@ -1164,9 +1187,12 @@ export function loadSourceSettings(ctx) {
 }
 
 let shellProbe = null
+let shellProbeAt = 0
+const SHELL_PROBE_TTL = 5 * 60 * 1000
 export async function shellAvailable() {
-  if (shellProbe !== null) return shellProbe
+  if (shellProbe !== null && Date.now() - shellProbeAt < SHELL_PROBE_TTL) return shellProbe
   try { await sh('true'); shellProbe = true } catch { shellProbe = false }
+  shellProbeAt = Date.now()
   return shellProbe
 }
 export function resetShellProbe() { shellProbe = null }
@@ -1450,7 +1476,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     setBusy(true); setErr('')
     try {
       const map = readSessionMap()
-      map[itemRef(item)] = linkSid
+      storeSid(map, item, linkSid)
       pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
       try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
       setDialog(null)
@@ -1480,6 +1506,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
       const alive = await sh(`[ -d ${sq(existingPath)} ] && echo yes || echo no`)
       if (alive !== 'yes') {
         const map0 = (pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {})
+        delete map0[itemKey(item)]
         delete map0[itemRef(item)]
         try { pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map0) } catch {}
         try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
@@ -1488,9 +1515,10 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
         throw new Error('Worktree folder is gone. Pick a profile and create a fresh one below.')
       }
       const map = (pluginCtx?.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {})
-      let id = map[itemRef(item)] || null
+      let id = lookupSid(map, item) || null
       const isLive = sid => (liveRows || []).some(r => r?.session_key === sid || r?.id === sid)
       if (id && !isLive(id)) {
+        delete map[itemKey(item)]
         delete map[itemRef(item)]
         id = null
       }
@@ -1500,7 +1528,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
       }
       const persist = () => {
         try {
-          if (id) map[itemRef(item)] = id
+          if (id) storeSid(map, item, id)
           pluginCtx?.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
         } catch {}
         try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
@@ -1511,6 +1539,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
           persist()
           host.notify?.({ kind: 'success', message: 'Opened existing worktree session.' })
         } catch (e) {
+          delete map[itemKey(item)]
           delete map[itemRef(item)]
           persist()
           host.notify?.({ kind: 'info', message: 'Saved session is gone — starting a fresh one.' })
@@ -1734,7 +1763,7 @@ function TaskCard({ item, linked, knownWorktrees }) {
     jsxs('div', { className: 'flex flex-wrap items-stretch gap-3', children: [
       jsxs('div', { className: 'min-w-40 flex-1 basis-40', children: [
         jsxs('div', { className: 'flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children: [
-          jsx(SessionDot, { presence: linked?.[itemRef(item)]?.presence }),
+          jsx(SessionDot, { presence: lookupLinked(linked, item)?.presence }),
           jsx(Codicon, { name: item.kind === 'pr' ? 'git-pull-request' : item.kind === 'worktree' ? 'git-branch' : 'issue-opened' }),
           jsx('span', { className: 'font-semibold', style: ST_ACCENT, children: item.kind === 'pr' ? 'PR' : item.kind === 'worktree' ? 'Worktree' : 'Issue' }),
           jsx('span', { className: 'font-medium break-words', style: ST_TEXT, children: item.repo }),
@@ -1759,7 +1788,7 @@ function TaskCard({ item, linked, knownWorktrees }) {
       jsxs('div', { className: 'flex shrink-0 flex-col items-stretch justify-center gap-1', children: [
         item.kind === 'worktree'
           ? jsx(PBtn, { kind: 'primary', disabled: opening, onClick: openWtSession, children: opening ? 'Opening…' : 'Open session' })
-          : jsx(StartWorktreeButton, { item, linkedSid: linked?.[itemRef(item)]?.sid, knownWorktrees }),
+          : jsx(StartWorktreeButton, { item, linkedSid: lookupLinked(linked, item)?.sid, knownWorktrees }),
       ] }),
       
     ] }),
@@ -2014,7 +2043,7 @@ function TaskDetail({ item, onClose }) {
               jsx('span', { className: 'size-1.5 rounded-full', style: { background: stateColor(item.state, item.isDraft) } }),
               stateText,
             ] }),
-            jsx(SessionDot, { presence: detailLinked[itemRef(item)]?.presence }),
+            jsx(SessionDot, { presence: lookupLinked(detailLinked, item)?.presence }),
             jsx('span', { className: 'truncate text-[11px] font-semibold text-(--ui-accent)', style: ST_ACCENT, children: itemRef(item) }),
           ] }),
           jsx('div', { className: 'mt-1 text-[15px] font-semibold leading-snug text-(--ui-text-primary)', style: ST_TEXT, children: detail.title || item.title }),

@@ -20,7 +20,17 @@ A Hermes Desktop plugin that shows GitHub **issues and pull requests from all yo
 ## Requirements
 
 - Hermes Desktop (recent version)
-- [`gh` CLI](https://cli.github.com/), authenticated (`gh auth login`)
+- [`gh` CLI](https://cli.github.com/), authenticated (`gh auth login`) — **or** a GitHub token (see Data source below)
+
+## Data source
+
+Top-right of the panel, the **Data source** button opens the source settings:
+
+- **Auto** (default): uses `gh` when the shell answers, otherwise the GitHub API.
+- **gh CLI only** / **GitHub API only**: force one path.
+- The token (classic or fine-grained, `repo` scope) lives only in your browser's plugin storage, travels only as an `Authorization` header to `api.github.com`, and is never written to the repo or the logs.
+- API mode differences: no review-decision dot on cards (reviews still show in the detail view); worktree creation is delegated to the agent (it runs the `git` commands itself after your approval).
+- When the desktop shell bridge is unavailable, worktree setup always goes through the agent: the session opens with exact instructions (reuse-or-create worktree, suggested clone folders) and asks you if nothing fits.
 
 ## Install
 
