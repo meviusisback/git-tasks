@@ -231,9 +231,14 @@ export function deriveBranchName(item) {
   return `${item?.kind === 'pr' ? 'pr' : 'issue'}/${item?.number || 0}-${slug || 'task'}`
 }
 
+export function formatSkillInvoke(skill) {
+  const name = String(skill || '').trim().replace(/^\/+/, '')
+  return name ? `/${name}` : ''
+}
+
 export function formatSeedMessage(item, skill = '') {
   const kind = item?.kind === 'pr' ? 'pull request' : 'issue'
-  const invoke = String(skill || '').trim()
+  const invoke = formatSkillInvoke(skill)
   return [
     `Work on this GitHub ${kind}: ${itemRef(item)}`,
     ...(invoke ? [invoke] : []),
@@ -456,6 +461,34 @@ export async function listSkills() {
 export function branchOk(name) {
   const b = String(name || '')
   return /^(?!-)(?!.*\.\.)[A-Za-z0-9_.\/\-]+$/.test(b)
+}
+
+export function parseModelOptions(payload) {
+  const out = []
+  const res = (payload && typeof payload === 'object' && payload.result && typeof payload.result === 'object') ? payload.result : payload
+  const providers = Array.isArray(res?.providers) ? res.providers : (Array.isArray(res) ? res : [])
+  for (const p of providers) {
+    if (typeof p === 'string') { out.push({ label: p, model: p }); continue }
+    if (!p || typeof p !== 'object') continue
+    const pname = p.name || p.slug || p.label || ''
+    const slug = p.slug || p.id || ''
+    for (const m of (p.models || [])) {
+      if (typeof m === 'string') {
+        out.push({ label: pname ? `${pname} / ${m}` : m, model: m, provider: slug || undefined })
+      } else if (m && typeof m === 'object') {
+        const id = m.id || m.model || m.name || m.slug
+        if (!id) continue
+        out.push({ label: String(m.label || m.display || (pname ? `${pname} / ${id}` : id)), model: String(id), provider: slug || undefined })
+      }
+    }
+  }
+  const seen = new Set()
+  return out.filter(o => (seen.has(o.model + '|' + (o.provider || '')) ? false : (seen.add(o.model + '|' + (o.provider || '')), true)))
+}
+
+export async function listModels() {
+  const raw = await host.request('model.options', {})
+  return parseModelOptions(raw)
 }
 
 export function profileName(p) {
@@ -734,17 +767,19 @@ export async function createWorktree(repoRoot, branch, baseRef = '') {
 }
 
 export function formatFreeSeedMessage(repo, branch, skill = '') {
-  const invoke = String(skill || '').trim()
+  const invoke = formatSkillInvoke(skill)
   return [`Work on ${repo} branch ${branch}`, ...(invoke ? [invoke] : []), '', 'Verify the branch state with `git status` and `gh` before changing code.'].join('\n')
 }
 
-export async function startFreeSession(repo, branch, worktreePath, profile = null, skill = '', mapKey = null) {
+export async function startFreeSession(repo, branch, worktreePath, profile = null, skill = '', mapKey = null, model = '', provider = '') {
   const raw = await host.request('session.create', {
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${repo} ${branch}`.slice(0, 120),
     ...(profile ? { profile } : {}),
     messages: [{ role: 'user', content: formatFreeSeedMessage(repo, branch, skill) }],
+    ...(model ? { model } : {}),
+    ...(provider ? { provider } : {}),
   })
   const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
   const storedId = res?.stored_session_id || res?.session_id || res?.id
@@ -764,13 +799,15 @@ export async function startFreeSession(repo, branch, worktreePath, profile = nul
   return storedId
 }
 
-export async function startWorktreeSession(item, worktreePath, profile = null, skill = '') {
+export async function startWorktreeSession(item, worktreePath, profile = null, skill = '', model = '', provider = '') {
   const raw = await host.request('session.create', {
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${itemRef(item)} ${item.title}`.slice(0, 120),
     messages: [{ role: 'user', content: formatSeedMessage(item, skill) }],
     ...(profile ? { profile } : {}),
+    ...(model ? { model } : {}),
+    ...(provider ? { provider } : {}),
   })
   const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
   const storedId = res?.stored_session_id || res?.storedSessionId || res?.session_id || res?.sessionId || res?.id || res?.session?.stored_session_id || res?.session?.storedSessionId || res?.session?.session_id || res?.session?.id
@@ -937,6 +974,47 @@ function SkillPicker({ value, onChange, label }) {
   ] })
 }
 
+function ModelPicker({ value, onChange }) {
+  const [models, setModels] = useState(null)
+  const [open, setOpen] = useState(false)
+  const [popWidth, setPopWidth] = useState(null)
+  const [text, setText] = useState('')
+  const wrapRef = useRef(null)
+  const ensure = () => { if (models === null) { listModels().then(setModels).catch(() => setModels([])) } }
+  const shown = text || value?.label || ''
+  const matches = open ? (models || []).filter(m => skillMatchesQuery(m.label, text)).slice(0, 8) : []
+  return jsxs('div', { className: 'flex flex-col gap-1', children: [
+    jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `Model (optional)${Array.isArray(models) ? ` — ${models.length} loaded` : ''}` }),
+    jsxs('div', { ref: wrapRef, className: 'relative',
+      onClickCapture: e => {
+        if (wrapRef.current) setPopWidth(wrapRef.current.getBoundingClientRect().width)
+        if (!e.target.closest || !e.target.closest('[data-chev]')) e.stopPropagation()
+      }, children: [
+      jsx(Popover, { open, onOpenChange: setOpen, children: [
+        jsx(PopoverTrigger, { asChild: true, children:
+          jsxs('div', { className: 'relative', children: [
+            jsx(Input, { value: shown, placeholder: 'type to search models…', className: 'h-7 w-full pr-8 text-[11px]',
+              onChange: e => { setText(e.target.value); ensure(); setOpen(true) },
+              onFocus: () => ensure() }),
+            jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse models',
+              className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
+              style: { color: 'var(--ui-text-tertiary)' },
+              onClick: () => { ensure(); setOpen(o => !o) },
+              children: jsx(Codicon, { name: 'chevron-down', size: '1rem', className: 'opacity-60' }) }),
+          ] }) }),
+        open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
+          style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
+          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
+            jsx('button', { type: 'button', key: `${n.provider || ''}|${n.model}`, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
+              onMouseDown: e => { e.preventDefault(); onChange(n); setText(''); setOpen(false) },
+              onClick: () => { onChange(n); setText(''); setOpen(false) },
+              onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(n); setText(''); setOpen(false) } }, tabIndex: 0, children: n.label })) })
+          : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: models === null ? 'Loading models…' : (text ? 'No matching models.' : 'No models found.') }) }) : null,
+      ] }),
+    ] }),
+  ] })
+}
+
 function FilterCombo({ value, onChange, options, placeholder }) {
   const [open, setOpen] = useState(false)
   const [popWidth, setPopWidth] = useState(null)
@@ -1018,6 +1096,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
   const [baseRef, setBaseRef] = useState('')
   const [linkSid, setLinkSid] = useState('')
   const [skillName, setSkillName] = useState('')
+  const [modelSel, setModelSel] = useState(null)
   const liveRows = useLiveRows()
   const creatingRef = useRef(false)
   const roots = useValue($cloneRoots)
@@ -1152,7 +1231,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
       })()
       const path = existing || await createWorktree(root, branch, baseRef)
       const already = !!existing
-      await startWorktreeSession(item, path, profile || null, skillName)
+      await startWorktreeSession(item, path, profile || null, skillName, modelSel?.model || '', modelSel?.provider || '')
       host.notify?.({ kind: 'success', message: already ? 'Reopened existing worktree session.' : 'Worktree session opened.' })
       setExistingPath(path)
       setDialog(null)
@@ -1174,7 +1253,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
       const dest = cloneTargetPath(targetRoot || (roots && roots[0]) || '~/repo', item.repo, home)
       await sh(`gh repo clone ${sq(item.repo)} ${sq(dest)}`)
       const path = await createWorktree(dest, deriveBranchName(item), baseRef)
-      await startWorktreeSession(item, path, profile || null, skillName)
+      await startWorktreeSession(item, path, profile || null, skillName, modelSel?.model || '', modelSel?.provider || '')
       setCloneRoot(dest)
       setExistingPath(path)
       setDialog(null)
@@ -1235,6 +1314,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
       cloneRoot ? jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `Worktree in ${cloneRoot}` }),
                 jsx(SkillPicker, { value: skillName, onChange: setSkillName }),
+        jsx(ModelPicker, { value: modelSel, onChange: setModelSel }),
         jsx(PBtn, { kind: 'primary', disabled: busy, onClick: confirmNew, children: 'Create worktree' }),
       ] }) : jsxs('div', { className: 'flex flex-col gap-1', children: [
         jsx('span', { className: 'text-[10px] break-words', style: ST_MUTED, children: `No local clone of ${item.repo}. Clone into:` }),
@@ -1371,6 +1451,7 @@ function NewWorktreeButton() {
   const [profile, setProfile] = useState('')
   const [baseRef, setBaseRef] = useState('')
   const [fskill, setFSkill] = useState('')
+  const [fmodel, setFmodel] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [profiles, setProfiles] = useState(null)
@@ -1403,7 +1484,7 @@ function NewWorktreeButton() {
         await sh(`gh repo clone ${sq(repo)} ${sq(root)}`)
       }
       const path = await createWorktree(root, branch, baseRef)
-      await startFreeSession(repo, branch, path, profile || null, fskill, `wt:${path}`)
+      await startFreeSession(repo, branch, path, profile || null, fskill, `wt:${path}`, fmodel?.model || '', fmodel?.provider || '')
       try {
         const prs = await ghJson(`${GH} pr list --repo ${sq(repo)} --head ${sq(branch)} --json number --limit 1`)
         const n = Array.isArray(prs) && prs[0] ? prs[0].number : null
@@ -1419,7 +1500,7 @@ function NewWorktreeButton() {
         }
       } catch { /* nessun PR su questo branch: niente da collegare */ }
       setOpen(false)
-      setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setFSkill(''); setErr('')
+      setRepo(''); setBranch(''); setProfile(''); setBaseRef(''); setFSkill(''); setFmodel(null); setErr('')
     } catch (e) {
       const msg = String(e?.message || e)
       setErr(msg)
@@ -1448,6 +1529,7 @@ function NewWorktreeButton() {
           ] }),
         ] }),
         jsx(SkillPicker, { value: fskill, onChange: setFSkill }),
+        jsx(ModelPicker, { value: fmodel, onChange: setFmodel }),
         jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: 'Start from' }),
         jsxs(Select, { value: baseRef, onValueChange: setBaseRef, children: [
           jsx(SelectTrigger, { className: 'h-7 text-[11px]', children: jsx(SelectValue, { placeholder: 'Branch' }) }),

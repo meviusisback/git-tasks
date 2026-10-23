@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem, formatSkillInvoke, parseModelOptions,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -444,7 +444,7 @@ test('formatSeedMessage appends the skill right after the ref', () => {
   const m = formatSeedMessage({ kind: 'pr', repo: 'o/r', number: 7, title: 't', url: '' }, 'security-audit')
   const lines = m.split('\n')
   assert.equal(lines[0], 'Work on this GitHub pull request: o/r#7')
-  assert.equal(lines[1], 'security-audit')
+  assert.equal(lines[1], '/security-audit')
   const plain = formatSeedMessage({ kind: 'issue', repo: 'o/r', number: 1, title: 't', url: '' })
   assert.ok(!plain.split('\n').includes('security-audit'))
 })
@@ -518,4 +518,22 @@ test('free session matches by head branch', () => {
   const rows = [{ session_key: 's1', title: 'o/a feat/x' }]
   assert.equal(findLiveForItem(rows, item)?.session_key, 's1')
   assert.equal(findLiveForItem([], item), null)
+})
+
+test('formatSkillInvoke prefixes one slash', () => {
+  assert.equal(formatSkillInvoke('security-audit'), '/security-audit')
+  assert.equal(formatSkillInvoke('/security-audit'), '/security-audit')
+  assert.equal(formatSkillInvoke('  '), '')
+  assert.equal(formatSkillInvoke(''), '')
+})
+
+test('parseModelOptions reads providers and models', () => {
+  const payload = { providers: [{ slug: 'acme', name: 'Acme', models: ['m1', { id: 'm2', label: 'M Two' }] }, 'plain', { slug: 'empty' }] }
+  const out = parseModelOptions(payload)
+  assert.deepEqual(out, [
+    { label: 'Acme / m1', model: 'm1', provider: 'acme' },
+    { label: 'M Two', model: 'm2', provider: 'acme' },
+    { label: 'plain', model: 'plain' },
+  ])
+  assert.deepEqual(parseModelOptions({}), [])
 })
