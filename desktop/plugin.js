@@ -335,13 +335,11 @@ export async function fetchLiveSessions() {
   try {
     push(unwrap(await host.request('session.active_list', {})))
   } catch { /* profilo corrente non disponibile */ }
-  // Le sessioni vivono sotto il profilo con cui sono state create: interroga tutti i profili.
+  // Le sessioni vivono sotto il profilo con cui sono state create: interroga tutti i profili, uno alla volta.
   try {
     const profiles = await listProfiles()
-    const settled = await Promise.allSettled(profiles.map(p => host.request('session.active_list', { profile: p })))
-    for (const r of settled) {
-      if (r.status !== 'fulfilled') continue
-      try { push(unwrap(r.value)) } catch {}
+    for (const p of profiles) {
+      try { push(unwrap(await host.request('session.active_list', { profile: p }))) } catch {}
     }
   } catch { /* solo profilo corrente */ }
   return out
@@ -687,8 +685,16 @@ export async function fetchRepoItems(repos, opts = {}) {
   return settled.filter(r => r.status === 'fulfilled').flatMap(r => parseListOutput(r.value))
 }
 
-export async function listUserRepos(limit = 50) {
-  const rows = await ghJson(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner,isPrivate`)
+export function errorText(e) {
+  try {
+    const parts = [e?.message || e?.code, e?.data ? JSON.stringify(e.data).slice(0, 200) : '']
+    const s = parts.filter(Boolean).join(' ')
+    return String(s || e).slice(0, 300)
+  } catch { return String((e && e.message) || e).slice(0, 300) }
+}
+
+export async function listUserRepos(limit = 30) {
+  const rows = await ghJson(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner`)
   return (Array.isArray(rows) ? rows : []).map(r => ({ repo: r.nameWithOwner, private: !!r.isPrivate, updatedAt: r.updatedAt || '' }))
 }
 
@@ -1834,9 +1840,10 @@ function RepoPicker() {
     setLoading(true)
     setRepos(null)
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Loading repositories timed out after 5 seconds')), 5000))
-    void Promise.race([listUserRepos(50), timeout])
+    const attempt = () => Promise.race([listUserRepos(30), timeout])
+    void attempt().catch(() => new Promise(res => setTimeout(res, 800)).then(attempt))
       .then(result => { if (!cancelled) { setRepos(Array.isArray(result) ? result : []); setLoading(false) } })
-      .catch(e => { if (!cancelled) { setError(String(e?.message || e)); setLoading(false) } })
+      .catch(e => { if (!cancelled) { setError(errorText(e)); setLoading(false) } })
     return () => { cancelled = true }
   }, [open])
   const available = useMemo(
