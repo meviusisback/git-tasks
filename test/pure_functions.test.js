@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked, isShellDead, withApiFallback,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -606,4 +606,13 @@ test('session map keys include kind with legacy fallback', () => {
   assert.equal(lookupSid(map, pr), 's2')
   assert.equal(lookupSid({ 'o/r#5': 'old' }, issue), 'old')
   assert.equal(lookupLinked({ 'o/r#pr#5': { sid: 'x' } }, pr)?.sid, 'x')
+})
+
+test('isShellDead recognizes dead-shell errors', () => {
+  assert.equal(isShellDead({ message: 'shell.exec: invalid_params {"reason":"invalid_params"}' }), true)
+  assert.equal(isShellDead(new Error('boom')), false)
+})
+test('withApiFallback reraises when no token', async () => {
+  await assert.rejects(() => withApiFallback(() => { throw new Error('shell.exec: nope') }, () => 'api'), /shell.exec/)
+  assert.equal(await withApiFallback(() => 'gh', () => 'api'), 'gh')
 })

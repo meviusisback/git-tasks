@@ -846,8 +846,12 @@ export async function fetchRepoItemsApi(repos, opts = {}) {
 }
 
 export async function fetchRepoItems(repos, opts = {}) {
-  const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
   if ((await effectiveSource()) === 'api') return fetchRepoItemsApi(repos, opts)
+  return withApiFallback(() => fetchRepoItemsGh(repos, opts), () => fetchRepoItemsApi(repos, opts))
+}
+
+export async function fetchRepoItemsGh(repos, opts = {}) {
+  const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
   const list = parseRepoList(normalized)
   // Ogni repo e indipendente: tutti in parallelo, ordine conservato; uno rotto non affonda gli altri.
   const settled = await Promise.allSettled(list.map(r => sh(buildListScript([r], { ...opts, limit: opts.limit || 15 }))))
@@ -887,12 +891,12 @@ export async function mergeApi(item, method) {
 
 export async function runApprove(item) {
   if ((await effectiveSource()) === 'api') return approveApi(item)
-  return sh(formatApproveCmd(item))
+  return withApiFallback(() => sh(formatApproveCmd(item)), () => approveApi(item))
 }
 
 export async function runMerge(item, method) {
   if ((await effectiveSource()) === 'api') return mergeApi(item, method)
-  return sh(formatMergeCmd(item, method))
+  return withApiFallback(() => sh(formatMergeCmd(item, method)), () => mergeApi(item, method))
 }
 
 export async function commentApi(item, text) {
@@ -919,12 +923,20 @@ export async function listUserReposApi() {
 
 export async function listUserRepos(limit = 30) {
   if ((await effectiveSource()) === 'api') return listUserReposApi()
+  return withApiFallback(() => listUserReposGh(limit), () => listUserReposApi())
+}
+
+export async function listUserReposGh(limit = 30) {
   const rows = await ghJson(`${GH} repo list --limit ${Number(limit)} --json nameWithOwner`)
   return (Array.isArray(rows) ? rows : []).map(r => ({ repo: r.nameWithOwner, private: !!r.isPrivate, updatedAt: r.updatedAt || '' }))
 }
 
 export async function postComment(item, text) {
   if ((await effectiveSource()) === 'api') return commentApi(item, text)
+  return withApiFallback(() => postCommentGh(item, text), () => commentApi(item, text))
+}
+
+export async function postCommentGh(item, text) {
   const tag = `gittasks.cmt.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
   const dir = SCRATCH_DIR_SH
   const file = scratchPath(tag)
@@ -947,7 +959,7 @@ export async function postComment(item, text) {
 
 export async function setItemState(item, action) {
   if ((await effectiveSource()) === 'api') return setItemStateApi(item, action)
-  await sh(formatStateCmd(item, action))
+  return withApiFallback(() => sh(formatStateCmd(item, action)), () => setItemStateApi(item, action))
 }
 
 export async function ghJsonBig(cmd) {
@@ -1013,6 +1025,11 @@ export async function viewItemApi(item) {
 }
 
 export async function viewItem(item) {
+  if ((await effectiveSource()) === 'api') return viewItemApi(item)
+  return withApiFallback(() => viewItemGh(item), () => viewItemApi(item))
+}
+
+export async function viewItemGh(item) {
   const [base, extra] = await Promise.all([
     ghJsonBig(`${GH_PATH} ${formatViewCmd(item)}`),
     item.kind === 'pr'
@@ -1195,7 +1212,32 @@ export async function shellAvailable() {
   shellProbeAt = Date.now()
   return shellProbe
 }
-export function resetShellProbe() { shellProbe = null }
+export function resetShellProbe() { shellProbe = null; shellProbeAt = 0 }
+
+export function isShellDead(e) {
+  const m = String(e?.message || e || '')
+  return m.includes('shell.exec') || m.includes('invalid_params')
+}
+
+let fallbackNotified = false
+function noteApiFallback() {
+  if (fallbackNotified) return
+  fallbackNotified = true
+  try { host.notify?.({ kind: 'info', message: 'Shell unavailable — using the GitHub API instead.' }) } catch {}
+}
+
+export async function withApiFallback(fnGh, fnApi) {
+  try {
+    return await fnGh()
+  } catch (e) {
+    if (isShellDead(e) && apiToken()) {
+      resetShellProbe()
+      noteApiFallback()
+      return await fnApi()
+    }
+    throw e
+  }
+}
 
 export async function effectiveSource() {
   const pref = ($dataSource.get() || {}).mode || 'auto'
