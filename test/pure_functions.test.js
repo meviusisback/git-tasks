@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem, formatSkillInvoke, parseModelOptions, errorText,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem, formatSkillInvoke, parseModelOptions, errorText, gwErrorText,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -541,4 +541,8 @@ test('parseModelOptions reads providers and models', () => {
 test('errorText includes message and data', () => {
   assert.equal(errorText({ message: 'invalid_params', data: { field: 'x' } }), 'invalid_params {"field":"x"}')
   assert.equal(errorText(new Error('boom')), 'boom')
+})
+
+test('gwErrorText prefixes the failing method', () => {
+  assert.equal(gwErrorText('shell.exec', { message: 'invalid_params', data: { reason: 'invalid_params' } }), 'shell.exec: invalid_params {"reason":"invalid_params"}')
 })

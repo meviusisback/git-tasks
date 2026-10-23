@@ -333,13 +333,13 @@ export async function fetchLiveSessions() {
   const out = []
   const push = rows => { for (const r of rows) { const k = r?.session_key || r?.id; if (k && !seen.has(k)) { seen.add(k); out.push(r) } } }
   try {
-    push(unwrap(await host.request('session.active_list', {})))
+    push(unwrap(await gw('session.active_list', {})))
   } catch { /* profilo corrente non disponibile */ }
   // Le sessioni vivono sotto il profilo con cui sono state create: interroga tutti i profili, uno alla volta.
   try {
     const profiles = await listProfiles()
     for (const p of profiles) {
-      try { push(unwrap(await host.request('session.active_list', { profile: p }))) } catch {}
+      try { push(unwrap(await gw('session.active_list', { profile: p }))) } catch {}
     }
   } catch { /* solo profilo corrente */ }
   return out
@@ -485,7 +485,7 @@ export function parseModelOptions(payload) {
 }
 
 export async function listModels() {
-  const raw = await host.request('model.options', {})
+  const raw = await gw('model.options', {})
   return parseModelOptions(raw)
 }
 
@@ -496,7 +496,7 @@ export function profileName(p) {
 let profilesCache = { at: 0, data: null }
 export async function listProfiles() {
   if (profilesCache.data && Date.now() - profilesCache.at < 300_000) return profilesCache.data
-  const raw = await host.request('profiles.list', {})
+  const raw = await gw('profiles.list', {})
   const res = (raw && typeof raw === 'object' && raw.result && typeof raw.result === 'object') ? raw.result : raw
   const rows = Array.isArray(res?.profiles) ? res.profiles : []
   const out = rows.map(profileName).filter(Boolean)
@@ -591,8 +591,25 @@ export const readChunksConcurrently = async (byteLength, readChunk, options = {}
   return chunks.join('')
 }
 
+let lastGwError = ''
+export function gwErrorText(method, e) {
+  const detail = errorText(e)
+  lastGwError = `${method}: ${detail}`
+  try { if (typeof console !== 'undefined') console.error('[git-tasks]', lastGwError) } catch {}
+  return lastGwError
+}
+export function lastGwErrorText() { return lastGwError }
+
+async function gw(method, params) {
+  try {
+    return await host.request(method, params)
+  } catch (e) {
+    throw new Error(gwErrorText(method, e))
+  }
+}
+
 async function sh(cmd) {
-  const r = await host.request('shell.exec', { command: cmd })
+  const r = await gw('shell.exec', { command: cmd })
   if (r.code !== 0) throw new Error(String(r.stderr || r.stdout || `exit ${r.code}`).trim().slice(0, 600))
   return String(r.stdout || '').trim()
 }
