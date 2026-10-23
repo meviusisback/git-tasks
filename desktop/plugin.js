@@ -1641,16 +1641,18 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
   ] })
   const setup = dialog !== null
   return jsxs('div', { className: 'flex flex-col gap-1', onClick: e => e.stopPropagation(), style: { visibility: checked || busy ? 'visible' : 'hidden' }, children: [
-    jsxs('div', { className: 'flex items-stretch gap-1', children: [
+    jsxs('div', { className: 'flex items-stretch', children: [
       jsx(PBtn, {
         kind: 'primary', className: 'flex-1', disabled: busy || !checked,
         onClick: async e => { e.stopPropagation(); if (existingPath && !setup) await openExisting(); else await openSetup(e, 'worktree') },
+        style: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
         children: busy ? 'Working...' : (!checked ? '…' : (existingPath ? 'Go to worktree' : 'Start a worktree')),
       }),
       (!existingPath) ? jsx(PBtn, {
-        kind: 'secondary', className: 'px-2', disabled: busy, 'aria-label': 'More actions',
+        kind: 'primary', className: 'border-l border-white/20 px-2', disabled: busy, 'aria-label': 'More actions',
         onClick: e => { e.stopPropagation(); setErr(''); setMenu(m => !m) },
-        children: jsx(Codicon, { name: menu ? 'chevron-up' : 'chevron-down' }),
+        style: { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
+        children: jsx('span', { style: { display: 'inline-block', transform: menu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }, children: jsx(Codicon, { name: 'chevron-down' }) }),
       }) : null,
     ]}),
     (menu && !existingPath) ? jsxs('div', { className: 'flex flex-col gap-1 rounded-xl border p-1.5', style: ST_DEEP, children: [
