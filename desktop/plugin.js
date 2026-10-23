@@ -1477,6 +1477,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
   const [profiles, setProfiles] = useState(null)
   const [profile, setProfile] = useState('')
   const [targetRoot, setTargetRoot] = useState('')
+  const [exactPath, setExactPath] = useState('')
   const [baseRef, setBaseRef] = useState('')
   const [linkSid, setLinkSid] = useState('')
   const [skillName, setSkillName] = useState('')
@@ -1620,7 +1621,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     }
     try {
       const clones = await discoverLocalClones()
-      const root = pickLocalClone(clones, item.repo)
+      const root = manualPath ? expandRoot(manualPath) : pickLocalClone(clones, item.repo)
       if (!root) throw new Error('Clone not found. Use the clone option below.')
       const branch = deriveBranchName(item)
       const slug = branch.replace(/\//g, '-')
@@ -1648,14 +1649,29 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     creatingRef.current = true
     setBusy(true); setErr('')
     try { assertSkillUsable(skillName) } catch (e) { fail(e); creatingRef.current = false; return }
+    const manualPath = exactPath.trim()
     if (!(await shellAvailable().catch(() => false))) {
-      try { await runAgentCreate(formatAgentWorktreeMessage(item, { branch: deriveBranchName(item), baseRef, roots, skill: skillName }), itemRef(item)) }
+      try { await runAgentCreate(formatAgentWorktreeMessage(item, { branch: deriveBranchName(item), baseRef, roots: manualPath ? [manualPath, ...roots] : roots, skill: skillName }), itemRef(item)) }
       catch (error) { fail(error); creatingRef.current = false; return }
       setBusy(false)
       creatingRef.current = false
       return
     }
     try {
+      if (manualPath) {
+        const root = expandRoot(manualPath)
+        const yes = await sh(`[ -d ${sq(root)} ] && echo yes || echo no`)
+        if (yes !== 'yes') throw new Error(`Folder not found: ${manualPath}`)
+        const path = await createWorktree(root, deriveBranchName(item), baseRef)
+        await startWorktreeSession(item, path, profile || null, skillName, modelSel?.model || '', modelSel?.provider || '')
+        setCloneRoot(root)
+        setExistingPath(path)
+        setDialog(null)
+        host.notify?.({ kind: 'success', message: 'Worktree session opened.' })
+        setBusy(false)
+        creatingRef.current = false
+        return
+      }
       await sh(`gh repo view ${sq(item.repo)} --json nameWithOwner`)
       const home = await shHome()
       const dest = cloneTargetPath(targetRoot || (roots && roots[0]) || '~/repo', item.repo, home)
@@ -1733,7 +1749,8 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
           jsxs(SelectContent, { children: (roots || []).map(r => jsx(SelectItem, { value: r, children: r }, r)) }),
         ] }),
         jsx('span', { className: 'text-[10px] break-words', style: ST_FAINT, children: targetRoot ? `${targetRoot}/${item.repo.split('/')[1]}` : '' }),
-        jsx(PBtn, { kind: 'primary', disabled: busy || !targetRoot, onClick: cloneAndStart, children: 'Clone & start' }),
+        jsx(Input, { value: exactPath, onChange: e => setExactPath(e.target.value), placeholder: 'Or paste the exact local path, if already cloned…', className: 'h-7 w-full rounded-md border px-3 text-[11px]', style: { ...ST_CARD, ...ST_TEXT } }),
+        jsx(PBtn, { kind: 'primary', disabled: busy || (!targetRoot && !exactPath.trim()), onClick: cloneAndStart, children: 'Clone & start' }),
         jsx('span', { className: 'text-[10px]', style: ST_FAINT, children: 'Add folders in Settings → Clone folders.' }),
       ] }),
       jsx(PBtn, { kind: 'secondary', onClick: () => setDialog(null), children: 'Close' }),
