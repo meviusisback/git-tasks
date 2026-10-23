@@ -2038,6 +2038,7 @@ function TasksList() {
       ] }),
     ] })
   }
+  if (filter.kind === 'worktree' && wq.isError) return jsx(EmptyState, { title: 'Local worktrees unavailable', description: `The shell bridge is down, so local folders cannot be listed. Sessions linked to a worktree still show their status dot; use "Start a worktree" and the agent sets it up. (${errorText(wq.error)})` })
   if (!rows.length) return jsx(EmptyState, { title: 'Nothing matches', description: 'Adjust the filters or add repositories.' })
   return jsx(ScrollArea, { className: 'h-full', children: jsx('div', { className: 'flex flex-col gap-1.5 p-3', children: grouped
     ? grouped.flatMap(g => [jsx('div', { className: 'mt-2 text-[10px] font-semibold text-(--ui-text-tertiary)', children: g.repo }, g.repo), ...g.items.map(item => jsx(TaskCard, { item, linked, knownWorktrees: wq.data }, cardKey(item)))])
