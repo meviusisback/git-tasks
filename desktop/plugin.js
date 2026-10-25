@@ -382,9 +382,21 @@ export function formatAgentFreeMessage(repo, branch, opts = {}) {
   return L.join('\n')
 }
 
+export function rawTopKeys(raw) {
+  if (!raw || typeof raw !== 'object') return String(raw).slice(0, 80)
+  try { return Object.keys(raw).join(',') } catch { return '?' }
+}
+
 export function collectSessionIds(raw) {
   const ids = []
   const push = v => { if (typeof v === 'string' && v && !ids.includes(v)) ids.push(v) }
+  const scan = (o, depth) => {
+    if (!o || typeof o !== 'object' || depth > 3) return
+    for (const [k, v] of Object.entries(o)) {
+      if (typeof v === 'string' && /session/i.test(k) && /id$/i.test(k)) push(v)
+      else if (v && typeof v === 'object') scan(v, depth + 1)
+    }
+  }
   if (raw && typeof raw === 'object') {
     for (const k of ['session_id', 'sessionId', 'stored_session_id', 'storedSessionId', 'id']) push(raw[k])
     for (const k of ['session', 'result']) {
@@ -394,6 +406,7 @@ export function collectSessionIds(raw) {
     for (const v of Object.values(raw)) {
       if (v && typeof v === 'object' && !Array.isArray(v)) for (const kk of ['session_id', 'sessionId', 'stored_session_id', 'storedSessionId', 'id']) push(v[kk])
     }
+    scan(raw, 0)
   }
   return ids
 }
@@ -404,7 +417,7 @@ export async function submitSeedText(raw, message, profile) {
   const text = String(message || '')
   if (!text) return
   const ids = collectSessionIds(raw)
-  if (!ids.length) throw new Error('no session id in session.create response')
+  if (!ids.length) throw new Error(`no session id in session.create response (keys: ${rawTopKeys(raw)})`)
   let lastErr = null
   for (const sid of ids) {
     try {
@@ -1370,6 +1383,18 @@ function SessionDot({ presence }) {
   ] })
 }
 
+function useMenuNav(count, pick) {
+  const [hi, setHi] = useState(-1)
+  useEffect(() => { setHi(-1) }, [count])
+  const onKeyDown = e => {
+    if (!count) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => (h + 1) % count) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => (h - 1 + count) % count) }
+    else if (e.key === 'Enter') { e.preventDefault(); pick(hi >= 0 ? hi : 0) }
+  }
+  return { hi, setHi, onKeyDown }
+}
+
 function SkillPicker({ value, onChange, label }) {
   const [skills, setSkills] = useState(null)
   const [open, setOpen] = useState(false)
@@ -1377,6 +1402,8 @@ function SkillPicker({ value, onChange, label }) {
   const wrapRef = useRef(null)
   const q = String(value || '').trim()
   const matches = open ? (skills || []).filter(n => skillMatchesQuery(n, value)).slice(0, 8) : []
+  const pickSkill = i => { const n = matches[i]; if (n == null) return; onChange(n); setOpen(false) }
+  const nav = useMenuNav(matches.length, pickSkill)
   const ensure = () => { if (skills === null) { listSkills().then(setSkills).catch(() => setSkills([])) } }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `${label || 'Skill on start (optional)'}${Array.isArray(skills) ? ` — ${skills.length} loaded` : ''}` }),
@@ -1390,7 +1417,7 @@ function SkillPicker({ value, onChange, label }) {
           jsxs('div', { className: 'relative', children: [
             jsx(Input, { value: value || '', placeholder: 'type to search skills…', className: 'h-7 w-full pr-8 text-[11px]',
               onChange: e => { onChange(e.target.value); ensure(); setOpen(true) },
-              onFocus: () => ensure() }),
+              onFocus: () => ensure(), onKeyDown: nav.onKeyDown }),
             jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse skills',
               className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
               style: { color: 'var(--ui-text-tertiary)' },
@@ -1399,9 +1426,9 @@ function SkillPicker({ value, onChange, label }) {
           ] }) }),
         open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
-          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
-            jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-              onMouseDown: e => { e.preventDefault(); onChange(n); setOpen(false) }, onClick: () => { onChange(n); setOpen(false) }, onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(n); setOpen(false) } }, tabIndex: 0, children: n })) })
+          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map((n, i) =>
+            jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: i === nav.hi ? { ...ST_TEXT, backgroundColor: 'var(--ui-bg-tertiary)' } : ST_TEXT,
+              onMouseEnter: () => nav.setHi(i), onMouseDown: e => { e.preventDefault(); pickSkill(i) }, onClick: () => pickSkill(i), onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickSkill(i) } }, tabIndex: 0, children: n })) })
           : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') }) }) : null,
       ] }),
     ] }),
@@ -1417,6 +1444,8 @@ function ModelPicker({ value, onChange }) {
   const ensure = () => { if (models === null) { listModels().then(setModels).catch(() => setModels([])) } }
   const shown = text || value?.label || ''
   const matches = open ? (models || []).filter(m => skillMatchesQuery(m.label, text)).slice(0, 8) : []
+  const pickModel = i => { const n = matches[i]; if (n == null) return; onChange(n); setText(''); setOpen(false) }
+  const nav = useMenuNav(matches.length, pickModel)
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `Model (optional)${Array.isArray(models) ? ` — ${models.length} loaded` : ''}` }),
     jsxs('div', { ref: wrapRef, className: 'relative',
@@ -1429,7 +1458,7 @@ function ModelPicker({ value, onChange }) {
           jsxs('div', { className: 'relative', children: [
             jsx(Input, { value: shown, placeholder: 'type to search models…', className: 'h-7 w-full pr-8 text-[11px]',
               onChange: e => { setText(e.target.value); ensure(); setOpen(true) },
-              onFocus: () => ensure() }),
+              onFocus: () => ensure(), onKeyDown: nav.onKeyDown }),
             jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse models',
               className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
               style: { color: 'var(--ui-text-tertiary)' },
@@ -1438,11 +1467,12 @@ function ModelPicker({ value, onChange }) {
           ] }) }),
         open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
-          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
-            jsx('button', { type: 'button', key: `${n.provider || ''}|${n.model}`, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-              onMouseDown: e => { e.preventDefault(); onChange(n); setText(''); setOpen(false) },
-              onClick: () => { onChange(n); setText(''); setOpen(false) },
-              onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(n); setText(''); setOpen(false) } }, tabIndex: 0, children: n.label })) })
+          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map((n, i) =>
+            jsx('button', { type: 'button', key: `${n.provider || ''}|${n.model}`, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: i === nav.hi ? { ...ST_TEXT, backgroundColor: 'var(--ui-bg-tertiary)' } : ST_TEXT,
+              onMouseEnter: () => nav.setHi(i),
+              onMouseDown: e => { e.preventDefault(); pickModel(i) },
+              onClick: () => pickModel(i),
+              onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickModel(i) } }, tabIndex: 0, children: n.label })) })
           : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: models === null ? 'Loading models…' : (text ? 'No matching models.' : 'No models found.') }) }) : null,
       ] }),
     ] }),
@@ -1454,6 +1484,8 @@ function FilterCombo({ value, onChange, options, placeholder }) {
   const [popWidth, setPopWidth] = useState(null)
   const wrapRef = useRef(null)
   const matches = open ? (options || []).filter(n => skillMatchesQuery(n, value)).slice(0, 8) : []
+  const pickOpt = i => { const n = matches[i]; if (n == null) return; onChange(n); setOpen(false) }
+  const nav = useMenuNav(matches.length, pickOpt)
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsxs('div', { ref: wrapRef, className: 'relative',
       onClickCapture: e => {
@@ -1464,7 +1496,7 @@ function FilterCombo({ value, onChange, options, placeholder }) {
         jsx(PopoverTrigger, { asChild: true, children:
           jsxs('div', { className: 'relative', children: [
             jsx(Input, { value: value || '', placeholder: placeholder || 'type to search…', className: 'h-7 w-full pr-8 text-[11px]',
-              onChange: e => { onChange(e.target.value); setOpen(true) } }),
+              onChange: e => { onChange(e.target.value); setOpen(true) }, onKeyDown: nav.onKeyDown }),
             jsx('button', { type: 'button', 'data-chev': true, 'aria-label': 'Browse options',
               className: 'absolute top-0 right-0 bottom-0 flex items-center px-3',
               style: { color: 'var(--ui-text-tertiary)' },
@@ -1472,9 +1504,9 @@ function FilterCombo({ value, onChange, options, placeholder }) {
           ] }) }),
         open ? jsx(PopoverContent, { variant: 'menu', align: 'start', side: 'bottom', sideOffset: 4,
           style: { width: popWidth || 240, padding: 4 }, onOpenAutoFocus: e => e.preventDefault(), children:
-          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map(n =>
-            jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: ST_TEXT,
-              onMouseDown: e => { e.preventDefault(); onChange(n); setOpen(false) }, onClick: () => { onChange(n); setOpen(false) }, onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(n); setOpen(false) } }, tabIndex: 0, children: n })) })
+          matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map((n, i) =>
+            jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: i === nav.hi ? { ...ST_TEXT, backgroundColor: 'var(--ui-bg-tertiary)' } : ST_TEXT,
+              onMouseEnter: () => nav.setHi(i), onMouseDown: e => { e.preventDefault(); pickOpt(i) }, onClick: () => pickOpt(i), onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickOpt(i) } }, tabIndex: 0, children: n })) })
           : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: 'No matching repositories.' }) }) : null,
       ] }),
     ] }),
