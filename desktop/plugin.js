@@ -445,7 +445,9 @@ export async function openAgentSession(opts = {}) {
       if (v && typeof v === 'object') { sid = v.sessionId ?? v.id ?? v.session?.id ?? null; if (sid) break }
     }
   }
-  if (typeof sid !== 'string' || !sid) throw new Error('no session id in session.create response')
+  const allIds = (typeof sid === 'string' && sid) ? [sid] : collectSessionIds(raw)
+  if (!allIds.length) throw new Error(`no session id in session.create response (keys: ${rawTopKeys(raw)})`)
+  sid = allIds[0]
   if (opts.mapKey && pluginCtx) {
     try {
       const map = pluginCtx.storage.get(STORAGE_KEY_WORKTREE_SESSIONS, {}) || {}
