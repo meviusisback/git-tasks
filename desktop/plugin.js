@@ -382,12 +382,49 @@ export function formatAgentFreeMessage(repo, branch, opts = {}) {
   return L.join('\n')
 }
 
+export function collectSessionIds(raw) {
+  const ids = []
+  const push = v => { if (typeof v === 'string' && v && !ids.includes(v)) ids.push(v) }
+  if (raw && typeof raw === 'object') {
+    for (const k of ['session_id', 'sessionId', 'stored_session_id', 'storedSessionId', 'id']) push(raw[k])
+    for (const k of ['session', 'result']) {
+      const o = raw[k]
+      if (o && typeof o === 'object') for (const kk of ['session_id', 'sessionId', 'stored_session_id', 'storedSessionId', 'id']) push(o[kk])
+    }
+    for (const v of Object.values(raw)) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) for (const kk of ['session_id', 'sessionId', 'stored_session_id', 'storedSessionId', 'id']) push(v[kk])
+    }
+  }
+  return ids
+}
+
+// Il gateway canonico non accetta piu `messages` in session.create: prima si crea,
+// poi si invia il testo con prompt.submit.
+export async function submitSeedText(raw, message, profile) {
+  const text = String(message || '')
+  if (!text) return
+  const ids = collectSessionIds(raw)
+  if (!ids.length) throw new Error('no session id in session.create response')
+  let lastErr = null
+  for (const sid of ids) {
+    try {
+      await host.request('prompt.submit', { session_id: sid, text, ...(profile ? { profile } : {}) })
+      return
+    } catch (e) { lastErr = e }
+  }
+  await new Promise(r => setTimeout(r, 1500))
+  try {
+    await host.request('prompt.submit', { session_id: ids[0], text, ...(profile ? { profile } : {}) })
+    return
+  } catch (e) { lastErr = e }
+  throw new Error(`seed message not accepted: ${errorText(lastErr)}`)
+}
+
 export async function openAgentSession(opts = {}) {
   const raw = await host.request('session.create', {
     ...(opts.profile ? { profile: opts.profile } : {}),
     ...(opts.model ? { model: opts.model, provider: opts.provider || undefined } : {}),
     title: String(opts.title || 'Task').slice(0, 120),
-    messages: [{ role: 'user', content: opts.message }],
   })
   let sid = raw && typeof raw === 'object' ? (raw.sessionId ?? raw.id ?? raw.session?.id ?? raw.result?.sessionId ?? raw.result?.id) : null
   if (!sid && raw && typeof raw === 'object') {
@@ -405,6 +442,11 @@ export async function openAgentSession(opts = {}) {
     } catch {}
   }
   await host.openSession(sid, { intent: 'tab' })
+  try {
+    await submitSeedText(raw, opts.message, opts.profile || null)
+  } catch (e) {
+    host.notify?.({ kind: 'error', message: String(e?.message || e) })
+  }
   return sid
 }
 
@@ -1083,7 +1125,6 @@ export async function startFreeSession(repo, branch, worktreePath, profile = nul
     cwd_explicit: true,
     title: `${repo} ${branch}`.slice(0, 120),
     ...(profile ? { profile } : {}),
-    messages: [{ role: 'user', content: formatFreeSeedMessage(repo, branch, skill) }],
     ...(model ? { model } : {}),
     ...(provider ? { provider } : {}),
   })
@@ -1101,6 +1142,11 @@ export async function startFreeSession(repo, branch, worktreePath, profile = nul
     } catch {}
   }
   await host.openSession(storedId, { intent: 'tab' })
+  try {
+    await submitSeedText(raw, formatFreeSeedMessage(repo, branch, skill), profile)
+  } catch (e) {
+    host.notify?.({ kind: 'error', message: String(e?.message || e) })
+  }
   host.notify?.({ kind: 'success', message: `Worktree session opened on ${repo} ${branch}.` })
   return storedId
 }
@@ -1110,7 +1156,6 @@ export async function startWorktreeSession(item, worktreePath, profile = null, s
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${itemRef(item)} ${item.title}`.slice(0, 120),
-    messages: [{ role: 'user', content: formatSeedMessage(item, skill) }],
     ...(profile ? { profile } : {}),
     ...(model ? { model } : {}),
     ...(provider ? { provider } : {}),
@@ -1130,6 +1175,11 @@ export async function startWorktreeSession(item, worktreePath, profile = null, s
     storeSid(map, item, storedId)
     pluginCtx.storage.set(STORAGE_KEY_WORKTREE_SESSIONS, map)
     try { $sessionMapVersion.set($sessionMapVersion.get() + 1) } catch {}
+  }
+  try {
+    await submitSeedText(raw, formatSeedMessage(item, skill), profile)
+  } catch (e) {
+    host.notify?.({ kind: 'error', message: String(e?.message || e) })
   }
   return raw
 }

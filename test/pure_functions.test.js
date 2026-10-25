@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked, isShellDead, withApiFallback,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked, isShellDead, withApiFallback, collectSessionIds,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -615,4 +615,10 @@ test('isShellDead recognizes dead-shell errors', () => {
 test('withApiFallback reraises when no token', async () => {
   await assert.rejects(() => withApiFallback(() => { throw new Error('shell.exec: nope') }, () => 'api'), /shell.exec/)
   assert.equal(await withApiFallback(() => 'gh', () => 'api'), 'gh')
+})
+
+test('collectSessionIds finds ids in any envelope', () => {
+  assert.deepEqual(collectSessionIds({ session_id: 'a' }), ['a'])
+  assert.deepEqual(collectSessionIds({ result: { stored_session_id: 'b' } }), ['b'])
+  assert.deepEqual(collectSessionIds({}), [])
 })
