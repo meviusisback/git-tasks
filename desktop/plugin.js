@@ -1399,6 +1399,7 @@ function useMenuNav(count, pick) {
 
 function SkillPicker({ value, onChange, label }) {
   const [skills, setSkills] = useState(null)
+  const [discFailed, setDiscFailed] = useState(false)
   const [open, setOpen] = useState(false)
   const [popWidth, setPopWidth] = useState(null)
   const wrapRef = useRef(null)
@@ -1406,7 +1407,7 @@ function SkillPicker({ value, onChange, label }) {
   const matches = open ? (skills || []).filter(n => skillMatchesQuery(n, value)).slice(0, 8) : []
   const pickSkill = i => { const n = matches[i]; if (n == null) return; onChange(n); setOpen(false) }
   const nav = useMenuNav(matches.length, pickSkill)
-  const ensure = () => { if (skills === null) { listSkills().then(setSkills).catch(() => setSkills([])) } }
+  const ensure = () => { if (skills === null) { listSkills().then(setSkills).catch(() => { setDiscFailed(true); setSkills([]) }) } }
   return jsxs('div', { className: 'flex flex-col gap-1', children: [
     jsx('span', { className: 'text-[10px] font-semibold', style: ST_MUTED, children: `${label || 'Skill on start (optional)'}${Array.isArray(skills) ? ` — ${skills.length} loaded` : ''}` }),
     jsxs('div', { ref: wrapRef, className: 'relative',
@@ -1431,7 +1432,7 @@ function SkillPicker({ value, onChange, label }) {
           matches.length ? jsxs('div', { className: 'flex max-h-60 flex-col gap-0.5 overflow-auto', children: matches.map((n, i) =>
             jsx('button', { type: 'button', key: n, className: 'block w-full rounded-md px-2 py-1 text-left text-[11px] hover:bg-(--ui-bg-tertiary)', style: i === nav.hi ? { ...ST_TEXT, backgroundColor: 'var(--ui-bg-tertiary)' } : ST_TEXT,
               onMouseEnter: () => nav.setHi(i), onMouseDown: e => { e.preventDefault(); pickSkill(i) }, onClick: () => pickSkill(i), onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickSkill(i) } }, tabIndex: 0, children: n })) })
-          : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (q ? 'No matching skills.' : 'No skills found.') }) }) : null,
+          : jsx('div', { className: 'px-2 py-1 text-[10px]', style: ST_FAINT, children: skills === null ? 'Loading skills…' : (discFailed ? 'Skill list unavailable (shell down) — type the name manually.' : (q ? 'No matching skills.' : 'No skills found.')) }) }) : null,
       ] }),
     ] }),
   ] })
