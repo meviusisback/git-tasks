@@ -411,6 +411,19 @@ export function collectSessionIds(raw) {
   return ids
 }
 
+// Il profilo scelto potrebbe non esistere sul gateway (es. 'default'): se rifiuta, riprova senza.
+export async function createSessionTolerant(params) {
+  try {
+    return await gw('session.create', params)
+  } catch (e) {
+    if (params.profile && String(e?.message || e).includes('invalid_params')) {
+      const { profile, ...rest } = params
+      return await gw('session.create', rest)
+    }
+    throw e
+  }
+}
+
 // Il gateway canonico non accetta piu `messages` in session.create: prima si crea,
 // poi si invia il testo con prompt.submit.
 export async function submitSeedText(raw, message, profile) {
@@ -434,7 +447,7 @@ export async function submitSeedText(raw, message, profile) {
 }
 
 export async function openAgentSession(opts = {}) {
-  const raw = await host.request('session.create', {
+  const raw = await createSessionTolerant({
     ...(opts.profile ? { profile: opts.profile } : {}),
     ...(opts.model ? { model: opts.model, provider: opts.provider || undefined } : {}),
     title: String(opts.title || 'Task').slice(0, 120),
@@ -1135,7 +1148,7 @@ export function formatFreeSeedMessage(repo, branch, skill = '') {
 }
 
 export async function startFreeSession(repo, branch, worktreePath, profile = null, skill = '', mapKey = null, model = '', provider = '') {
-  const raw = await host.request('session.create', {
+  const raw = await createSessionTolerant({
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${repo} ${branch}`.slice(0, 120),
@@ -1167,7 +1180,7 @@ export async function startFreeSession(repo, branch, worktreePath, profile = nul
 }
 
 export async function startWorktreeSession(item, worktreePath, profile = null, skill = '', model = '', provider = '') {
-  const raw = await host.request('session.create', {
+  const raw = await createSessionTolerant({
     cwd: worktreePath,
     cwd_explicit: true,
     title: `${itemRef(item)} ${item.title}`.slice(0, 120),
