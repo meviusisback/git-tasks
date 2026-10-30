@@ -450,7 +450,7 @@ export async function openAgentSession(opts = {}) {
   const raw = await createSessionTolerant({
     ...(opts.profile ? { profile: opts.profile } : {}),
     ...(opts.model ? { model: opts.model, provider: opts.provider || undefined } : {}),
-    title: String(opts.title || 'Task').slice(0, 120),
+    title: String(opts.title || 'Task').slice(0, 100),
   })
   let sid = raw && typeof raw === 'object' ? (raw.sessionId ?? raw.id ?? raw.session?.id ?? raw.result?.sessionId ?? raw.result?.id) : null
   if (!sid && raw && typeof raw === 'object') {
@@ -1153,7 +1153,7 @@ export async function startFreeSession(repo, branch, worktreePath, profile = nul
   const raw = await createSessionTolerant({
     cwd: worktreePath,
     cwd_explicit: true,
-    title: `${repo} ${branch}`.slice(0, 120),
+    title: `${repo} ${branch}`.slice(0, 100),
     ...(profile ? { profile } : {}),
     ...(model ? { model } : {}),
     ...(provider ? { provider } : {}),
@@ -1185,7 +1185,7 @@ export async function startWorktreeSession(item, worktreePath, profile = null, s
   const raw = await createSessionTolerant({
     cwd: worktreePath,
     cwd_explicit: true,
-    title: `${itemRef(item)} ${item.title}`.slice(0, 120),
+    title: `${itemRef(item)} ${item.title}`.slice(0, 100),
     ...(profile ? { profile } : {}),
     ...(model ? { model } : {}),
     ...(provider ? { provider } : {}),
@@ -1703,7 +1703,7 @@ function StartWorktreeButton({ item, linkedSid, knownWorktrees }) {
     creatingRef.current = false
   }
   const runAgentCreate = async (message, mapKey) => {
-    await openAgentSession({ title: `${itemRef(item)} ${item.title || ''}`.trim().slice(0, 120), message, profile: profile || null, model: modelSel?.model || '', provider: modelSel?.provider || '', mapKey })
+    await openAgentSession({ title: `${itemRef(item)} ${item.title || ''}`.trim().slice(0, 100), message, profile: profile || null, model: modelSel?.model || '', provider: modelSel?.provider || '', mapKey })
     host.notify?.({ kind: 'success', message: 'Session opened: the agent sets up the worktree.' })
     setDialog(null)
   }
@@ -2004,7 +2004,7 @@ function NewWorktreeButton() {
       if (!branchOk(branch)) throw new Error('Invalid branch name (letters, numbers, . _ / -, no leading - or ..).')
       assertSkillUsable(fskill)
       if (!(await shellAvailable().catch(() => false))) {
-        await openAgentSession({ title: `${repo} ${branch}`.slice(0, 120), message: formatAgentFreeMessage(repo, branch, { roots, skill: fskill }), profile: profile || null, model: fmodel?.model || '', provider: fmodel?.provider || '', mapKey: `agent:${repo}#${branch}` })
+        await openAgentSession({ title: `${repo} ${branch}`.slice(0, 100), message: formatAgentFreeMessage(repo, branch, { roots, skill: fskill }), profile: profile || null, model: fmodel?.model || '', provider: fmodel?.provider || '', mapKey: `agent:${repo}#${branch}` })
         host.notify?.({ kind: 'success', message: 'Session opened: the agent sets up the workspace.' })
         setOpen(null)
         setBusy(false)
