@@ -751,9 +751,11 @@ export const readChunksConcurrently = async (byteLength, readChunk, options = {}
 }
 
 let lastGwError = ''
-export function gwErrorText(method, e) {
+export function gwErrorText(method, e, params) {
   const detail = errorText(e)
-  lastGwError = `${method}: ${detail}`
+  let keys = ''
+  try { keys = params && typeof params === 'object' ? `{${Object.keys(params).join(',')}}` : '' } catch {}
+  lastGwError = `${method}${keys}: ${detail}`
   try { if (typeof console !== 'undefined') console.error('[git-tasks]', lastGwError) } catch {}
   return lastGwError
 }
@@ -763,7 +765,7 @@ async function gw(method, params) {
   try {
     return await host.request(method, params)
   } catch (e) {
-    throw new Error(gwErrorText(method, e))
+    throw new Error(gwErrorText(method, e, params))
   }
 }
 
