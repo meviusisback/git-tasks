@@ -918,6 +918,19 @@ export async function fetchRepoItemsApi(repos, opts = {}) {
       for (const row of res.value) items.push(apiRowToItem(r, row, 'pr'))
     }
   })
+  // Marchia le PR con changes requested (una ricerca per repo, economica).
+  try {
+    const byRepo = {}
+    for (const it of items) { if (it.kind === 'pr' && it.state === 'OPEN') (byRepo[it.repo] = byRepo[it.repo] || []).push(it) }
+    await Promise.allSettled(Object.keys(byRepo).map(async r => {
+      try {
+        const res = await ghApi(`/search/issues?q=${encodeURIComponent(`repo:${r} type:pr state:open review:changes-requested`)}&per_page=100`)
+        const nums = new Set(((res && res.items) || []).map(x => x.number))
+        for (const it of byRepo[r]) if (nums.has(it.number)) it.reviewDecision = 'CHANGES_REQUESTED'
+      } catch {}
+    }))
+  } catch {}
+
   // CI dots per le PR aperte (una chiamata per head sha)
   const prs = items.filter(it => it.kind === 'pr' && it.state === 'OPEN' && it.headRefName)
   const checks = await Promise.allSettled(prs.map(it =>
