@@ -155,27 +155,31 @@ export function parseListOutput(stdout) {
     try { rows = JSON.parse(trimmed) } catch { repo = null; kind = null; continue }
     if (!Array.isArray(rows)) { repo = null; kind = null; continue }
     for (const row of rows) {
-      items.push({
-        kind, repo,
-        number: row.number,
-        title: row.title || '',
-        state: String(row.state || '').toUpperCase(),
-        isDraft: !!row.isDraft,
-        author: row.author?.login || '',
-        createdAt: row.createdAt || '',
-        updatedAt: row.updatedAt || '',
-        labels: Array.isArray(row.labels) ? row.labels : [],
-        url: row.url || '',
-        reviewDecision: row.reviewDecision || '',
-        statusCheckRollup: Array.isArray(row.statusCheckRollup) ? row.statusCheckRollup : [],
-        headRefName: row.headRefName || '',
-        baseRefName: row.baseRefName || '',
-        isCrossRepository: !!row.isCrossRepository,
-      })
+      items.push(prRowToItem(repo, row, kind))
     }
     repo = null; kind = null
   }
   return items
+}
+
+export function prRowToItem(repo, row, kind = 'pr') {
+  return {
+    kind, repo,
+    number: row.number,
+    title: row.title || '',
+    state: String(row.state || '').toUpperCase(),
+    isDraft: !!row.isDraft,
+    author: row.author?.login || '',
+    createdAt: row.createdAt || '',
+    updatedAt: row.updatedAt || '',
+    labels: Array.isArray(row.labels) ? row.labels : [],
+    url: row.url || '',
+    reviewDecision: row.reviewDecision || '',
+    statusCheckRollup: Array.isArray(row.statusCheckRollup) ? row.statusCheckRollup : [],
+    headRefName: row.headRefName || '',
+    baseRefName: row.baseRefName || '',
+    isCrossRepository: !!row.isCrossRepository,
+  }
 }
 
 export function filterItems(items, { state = 'all', kind = 'all', repos = null, query = '' } = {}) {
@@ -186,6 +190,8 @@ export function filterItems(items, { state = 'all', kind = 'all', repos = null, 
     if (wanted !== 'all') {
       if (wanted === 'closed') {
         if (it.state !== 'CLOSED' && it.state !== 'MERGED') return false
+      } else if (wanted === 'changes') {
+        if (it.kind !== 'pr' || String(it.reviewDecision || '').toUpperCase() !== 'CHANGES_REQUESTED') return false
       } else if (it.state !== String(state).toUpperCase()) {
         return false
       }
@@ -886,6 +892,13 @@ export function ghStateParam(state) {
 
 export async function fetchRepoItemsApi(repos, opts = {}) {
   const list = parseRepoList(Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : []))
+  if ((opts.state || 'open') === 'changes') {
+    const settled = await Promise.allSettled(list.map(async r => {
+      const res = await ghApi(`/search/issues?q=${encodeURIComponent(`repo:${r} type:pr state:open review:changes-requested`)}&per_page=100`)
+      return ((res && res.items) || []).map(row => ({ ...apiRowToItem(r, row, 'pr'), reviewDecision: 'CHANGES_REQUESTED' }))
+    }))
+    return settled.filter(r => r.status === 'fulfilled').flatMap(r => r.value)
+  }
   const state = ghStateParam(opts.state || 'open')
   const limit = 100
   const settled = await Promise.allSettled(list.flatMap(r => [
@@ -925,6 +938,17 @@ export async function fetchRepoItems(repos, opts = {}) {
 export async function fetchRepoItemsGh(repos, opts = {}) {
   const normalized = Array.isArray(repos) ? repos : (typeof repos === 'string' ? repos.split('\n') : [])
   const list = parseRepoList(normalized)
+  if ((opts.state || 'open') === 'changes') {
+    const PR_FIELDS = 'number,title,state,isDraft,author,createdAt,updatedAt,labels,url,reviewDecision,statusCheckRollup,headRefName,baseRefName,isCrossRepository'
+    const limit = Number.isSafeInteger(opts.limit) && opts.limit > 0 ? opts.limit : 15
+    const settled = await Promise.allSettled(list.map(async r => {
+      const rows = await ghJson(`${GH} pr list --repo ${sq(r)} --search "review:changes-requested" --state open --limit ${limit} --json ${PR_FIELDS}`)
+      return (Array.isArray(rows) ? rows : []).map(row => prRowToItem(r, row, 'pr'))
+    }))
+    const failed = settled.filter(r => r.status === 'rejected')
+    if (failed.length) host.notify?.({ kind: 'error', message: `${failed.length} repo(s) failed to load; showing the rest.` })
+    return settled.filter(r => r.status === 'fulfilled').flatMap(r => r.value)
+  }
   // Ogni repo e indipendente: tutti in parallelo, ordine conservato; uno rotto non affonda gli altri.
   const settled = await Promise.allSettled(list.map(r => sh(buildListScript([r], { ...opts, limit: opts.limit || 15 }))))
   const failed = settled.filter(r => r.status === 'rejected')
@@ -1225,7 +1249,7 @@ export const MAX_SELECTED_REPOS = 50
 export const MAX_CLONE_ROOTS = 20
 
 const FILTER_ENUMS = {
-  state: ['open', 'all', 'closed'],
+  state: ['open', 'all', 'closed', 'changes'],
   kind: ['all', 'pr', 'issue', 'worktree'],
   sort: ['updated', 'created', 'repo'],
 }
@@ -1933,7 +1957,14 @@ function TaskCard({ item, linked, knownWorktrees }) {
           (() => { const cs = checkSummary(item); if (cs.tone === 'none') return null
             const fill = cs.tone === 'ok' ? '#a6e3a1' : cs.tone === 'fail' ? '#f38ba8' : '#f9e2af'
             return jsx('span', { style: { width: 7, height: 7, borderRadius: 9999, backgroundColor: fill, display: 'inline-block' }, title: cs.label }) })(),
-          (() => { const rl = reviewLabel(item.reviewDecision); return rl ? jsx('span', { className: 'shrink-0', style: ST_MUTED, children: rl }) : null })(),
+          (() => { const rl = reviewLabel(item.reviewDecision); if (!rl) return null
+            const hot = String(item.reviewDecision || '').toUpperCase() === 'CHANGES_REQUESTED'
+            return jsxs('span', { className: 'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px', title: rl,
+              style: { backgroundColor: hot ? 'color-mix(in srgb, #f38ba8 20%, transparent)' : 'transparent', color: hot ? '#f38ba8' : undefined },
+              children: [
+                hot ? jsx('span', { style: { width: 7, height: 7, borderRadius: 9999, backgroundColor: '#f38ba8', display: 'inline-block' } }) : null,
+                jsx('span', { style: hot ? {} : ST_MUTED, children: rl }),
+              ] }) })(),
         ] }),
         jsx('div', { className: 'mt-1 text-sm font-semibold break-words', style: ST_TEXT, children: item.title }),
         jsxs('div', { className: 'mt-1 flex flex-wrap items-center gap-1.5 text-[10px]', style: ST_MUTED, children:
@@ -2099,9 +2130,9 @@ function TasksToolbar() {
   useEffect(() => { if (shellDead && $filter.get().kind === 'worktree') set({ kind: 'all' }) }, [shellDead])
   return jsxs('div', { className: 'flex shrink-0 flex-col gap-1.5 border-b border-(--ui-stroke-secondary) bg-(--ui-bg-quaternary) p-2', style: { ...MONO_STYLE, ...ST_CARD }, children: [
     jsxs('div', { className: 'flex items-center gap-1.5', children: [
-      jsx('div', { className: 'min-w-0 shrink-0', style: { width: 220 }, children:
+      jsx('div', { className: 'min-w-0 shrink-0', style: { width: 280 }, children:
         jsx(SegmentedControl, { value: filter.state, onChange: v => set({ state: v }), className: 'w-full',
-          options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }] }),
+          options: [{ id: 'open', label: 'Open' }, { id: 'all', label: 'All' }, { id: 'closed', label: 'Closed' }, { id: 'changes', label: 'Changes' }] }),
       }),
       jsx('div', { className: 'min-w-0 shrink-0', style: { width: 340 }, children:
         jsx(SegmentedControl, { value: filter.kind, onChange: v => set({ kind: v }), className: 'w-full bg-(--ui-bg-secondary)',

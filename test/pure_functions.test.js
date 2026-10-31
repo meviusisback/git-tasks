@@ -7,7 +7,7 @@ import {
   buildCloneScanCommand, buildListScript, parseListOutput, filterItems, sortItems, groupByRepo,
   deriveBranchName, formatSeedMessage, itemRef, stateColor, deriveChunkOffsets,
   formatCheckoutCmd, formatViewCmd, formatStateCmd, formatWorktreeRemoveCmd, buildCommentCmd,
-  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked, isShellDead, withApiFallback, collectSessionIds, rawTopKeys, createSessionTolerant,
+  mergeMethodOk, formatMergeCmd, externalUrlOk, sanitizeFilter, numOk, scratchPath, profileName, cloneTargetPath,  checkSummary, reviewLabel, formatApproveCmd, sessionPresence, sessionTitleRef, decodeHexDump, parseSkillNames, skillMatchesQuery, branchOk, formatFreeSeedMessage, worktreeToItems, attachWorktreeMtimes, cardKey, findWorktreeForItem, freeSessionMatches, findLiveForItem,  formatSkillInvoke, parseModelOptions, errorText, gwErrorText, apiIssueState, apiRowToItem, ghStateParam, formatAgentWorktreeMessage, formatAgentFreeMessage, sanitizeSkillName, assertSkillUsable, neutralizeUntrusted, itemKey, lookupSid, storeSid, lookupLinked, isShellDead, withApiFallback, prRowToItem, collectSessionIds, rawTopKeys, createSessionTolerant,
   readChunksConcurrently, pickLocalClone, parseCloneScanOutput, buildWorktreeCommand, createWorktree, parseWorktreeList, findWorktree,
   STORAGE_KEY_REPOS, STORAGE_KEY_CLONE_ROOTS,
 } from '../desktop/plugin.js'
@@ -621,4 +621,21 @@ test('collectSessionIds finds ids in any envelope', () => {
   assert.deepEqual(collectSessionIds({ session_id: 'a' }), ['a'])
   assert.deepEqual(collectSessionIds({ result: { stored_session_id: 'b' } }), ['b'])
   assert.deepEqual(collectSessionIds({}), [])
+})
+
+test('changes filter keeps only PRs with changes requested', () => {
+  const items = [
+    { kind: 'pr', state: 'OPEN', reviewDecision: 'CHANGES_REQUESTED' },
+    { kind: 'pr', state: 'OPEN', reviewDecision: 'APPROVED' },
+    { kind: 'issue', state: 'OPEN', reviewDecision: '' },
+  ]
+  const out = filterItems(items, { state: 'changes', kind: 'all' })
+  assert.equal(out.length, 1)
+  assert.equal(out[0].reviewDecision, 'CHANGES_REQUESTED')
+})
+test('prRowToItem maps a gh row', () => {
+  const it = prRowToItem('o/r', { number: 1, title: 'T', state: 'open', author: { login: 'a' } }, 'pr')
+  assert.equal(it.kind, 'pr')
+  assert.equal(it.repo, 'o/r')
+  assert.equal(it.state, 'OPEN')
 })
